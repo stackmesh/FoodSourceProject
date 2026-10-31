@@ -68,6 +68,13 @@ const milk = await names({ q: "МОЛОКО" });
 check("МОЛОКО finds EkoNiva", milk.slugs.includes("ekoniva"));
 check("МОЛОКО finds demo milk", milk.slugs.includes("nevskaya-molochnaya"));
 
+const milkByName = await names({ q: "МОЛОКО", scope: "name" });
+check("name scope keeps a supplier whose name contains молоко", milkByName.slugs.includes("sibirskoe-moloko"));
+check("name scope skips a supplier that only matches a product", !milkByName.slugs.includes("ekoniva"));
+
+const milkByProduct = await names({ q: "МОЛОКО", scope: "product" });
+check("product scope finds EkoNiva", milkByProduct.slugs.includes("ekoniva"));
+
 const ye = await names({ q: "цыпленка" });
 check("е matches ё in цыплёнка", ye.slugs.includes("privolzhskaya-ptica"));
 

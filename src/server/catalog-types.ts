@@ -26,6 +26,7 @@ export type CatalogCertification = {
   id: string;
   name: string;
   documentUrl: string | null;
+  sourceUrl: string | null;
   issuer: string | null;
   status: CertificationStatus;
   expiresAt: string | null;

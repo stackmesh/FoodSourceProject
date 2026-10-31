@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
+import { ArrowLeftRight, Bookmark, Heart, Pencil } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -18,15 +19,19 @@ import { addToComparison, toggleFavorite } from "@/server/actions";
 export function FavoriteButton({
   supplierId,
   saved,
+  appearance = "text",
+  className,
 }: {
   supplierId: string;
   saved: boolean;
+  appearance?: "text" | "labeled" | "icon" | "bookmark";
+  className?: string;
 }) {
   const t = useTranslations("Catalog");
   const [state, action, pending] = useActionState(toggleFavorite, null);
   const [open, setOpen] = useState(false);
   const isSaved = state?.ok ? state.saved : saved;
-  const formId = `remove-favorite-${supplierId}`;
+  const formId = `remove-favorite-${appearance}-${supplierId}`;
 
   if (isSaved) {
     return (
@@ -44,9 +49,13 @@ export function FavoriteButton({
           }}
         >
           <input type="hidden" name="supplierId" value={supplierId} />
-          <Button type="submit" variant="secondary" size="sm" disabled={pending}>
-            {t("saved")}
-          </Button>
+          <FavoriteControl
+            appearance={appearance}
+            className={className}
+            pending={pending}
+            saved
+            label={t("saved")}
+          />
         </form>
         <AlertDialog open={open} onOpenChange={setOpen}>
           <AlertDialogContent>
@@ -80,12 +89,75 @@ export function FavoriteButton({
   return (
     <form action={action}>
       <input type="hidden" name="supplierId" value={supplierId} />
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>
-        {t("save")}
-      </Button>
+      <FavoriteControl
+        appearance={appearance}
+        className={className}
+        pending={pending}
+        saved={false}
+        label={t("save")}
+      />
       {state && !state.ok ? (
         <p className="mt-1 text-xs text-destructive">{t("actionFailed")}</p>
       ) : null}
+    </form>
+  );
+}
+
+function FavoriteControl({
+  appearance,
+  className,
+  pending,
+  saved,
+  label,
+}: {
+  appearance: "text" | "labeled" | "icon" | "bookmark";
+  className?: string;
+  pending: boolean;
+  saved: boolean;
+  label: string;
+}) {
+  if (appearance === "icon") {
+    return (
+      <Button type="submit" variant="ghost" size="icon-sm" className={className} disabled={pending} aria-label={label}>
+        <Heart className={saved ? "fill-primary text-primary" : "text-muted-foreground"} />
+      </Button>
+    );
+  }
+  if (appearance === "bookmark") {
+    return (
+      <Button type="submit" variant="outline" size="sm" className={className} disabled={pending}>
+        <Bookmark />
+        {label}
+      </Button>
+    );
+  }
+  if (appearance === "labeled") {
+    return (
+      <Button type="submit" variant="outline" size="sm" className={`w-full ${className ?? ""}`} disabled={pending}>
+        <Bookmark />
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <Button type="submit" variant={saved ? "secondary" : "outline"} size="sm" className={className} disabled={pending}>
+      {label}
+    </Button>
+  );
+}
+
+export function SaveForNotes({ supplierId }: { supplierId: string }) {
+  const t = useTranslations("Catalog");
+  const [state, action, pending] = useActionState(toggleFavorite, null);
+
+  return (
+    <form action={action}>
+      <input type="hidden" name="supplierId" value={supplierId} />
+      <Button type="submit" variant="outline" size="sm" disabled={pending}>
+        <Pencil />
+        {pending ? t("saving") : t("addNote")}
+      </Button>
+      {state && !state.ok ? <p className="mt-1 text-xs text-destructive">{t("actionFailed")}</p> : null}
     </form>
   );
 }
@@ -94,10 +166,14 @@ export function CompareButton({
   slug,
   active,
   context,
+  className,
+  showIcon = false,
 }: {
   slug: string;
   active: boolean;
   context?: { query: string; category: string; city: string; region: string };
+  className?: string;
+  showIcon?: boolean;
 }) {
   const t = useTranslations("Catalog");
   const [state, action, pending] = useActionState(addToComparison, null);
@@ -105,14 +181,17 @@ export function CompareButton({
 
   if (comparing) {
     return (
-      <Button asChild variant="secondary" size="sm">
-        <Link href="/compare">{t("inCompare")}</Link>
+      <Button asChild variant="secondary" size="sm" className={className}>
+        <Link href="/compare">
+          {showIcon ? <ArrowLeftRight /> : null}
+          {t("inCompare")}
+        </Link>
       </Button>
     );
   }
 
   return (
-    <form action={action}>
+    <form action={action} className={showIcon ? "min-w-0" : undefined}>
       <input type="hidden" name="slug" value={slug} />
       {context ? (
         <>
@@ -123,7 +202,8 @@ export function CompareButton({
           <input type="hidden" name="region" value={context.region} />
         </>
       ) : null}
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button type="submit" size="sm" className={className} disabled={pending}>
+        {showIcon ? <ArrowLeftRight /> : null}
         {t("compare")}
       </Button>
       {state && !state.ok ? (

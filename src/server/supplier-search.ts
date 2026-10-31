@@ -14,27 +14,32 @@ const folded = {
   categoryEn: Prisma.raw(`translate(lower(c."nameEn"), 'ё', 'е')`),
 };
 
+function textMatch(query: DiscoveryQuery, like: string) {
+  if (like === "%%") return null;
+  const name = Prisma.sql`${folded.name} LIKE ${like}`;
+  const place = Prisma.sql`(${folded.city} LIKE ${like} OR ${folded.region} LIKE ${like})`;
+  const product = Prisma.sql`EXISTS (
+    SELECT 1
+    FROM "SupplierProduct" p
+    JOIN "Category" c ON c."id" = p."categoryId"
+    WHERE p."supplierId" = s."id"
+      AND (
+        ${folded.product} LIKE ${like}
+        OR ${folded.categoryRu} LIKE ${like}
+        OR ${folded.categoryEn} LIKE ${like}
+      )
+  )`;
+  if (query.scope === "name") return name;
+  if (query.scope === "place") return place;
+  if (query.scope === "product") return product;
+  return Prisma.sql`(${name} OR ${place} OR ${product})`;
+}
+
 function whereSql(query: DiscoveryQuery, like: string) {
   const filters = [Prisma.sql`s."isActive" = true`];
 
-  if (like !== "%%") {
-    filters.push(Prisma.sql`(
-      ${folded.name} LIKE ${like}
-      OR ${folded.city} LIKE ${like}
-      OR ${folded.region} LIKE ${like}
-      OR EXISTS (
-        SELECT 1
-        FROM "SupplierProduct" p
-        JOIN "Category" c ON c."id" = p."categoryId"
-        WHERE p."supplierId" = s."id"
-          AND (
-            ${folded.product} LIKE ${like}
-            OR ${folded.categoryRu} LIKE ${like}
-            OR ${folded.categoryEn} LIKE ${like}
-          )
-      )
-    )`);
-  }
+  const text = textMatch(query, like);
+  if (text) filters.push(text);
 
   if (query.category) {
     filters.push(Prisma.sql`EXISTS (

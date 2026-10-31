@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { ChevronDown, Info, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { DiscoveryQuery, SupplierTypeFilter } from "@/lib/discovery-query";
@@ -17,11 +19,13 @@ const types: SupplierTypeFilter[] = [
 
 export function DiscoveryFilters({
   query,
+  total,
   categories,
   cities,
   regions,
 }: {
   query: DiscoveryQuery;
+  total: number;
   categories: { slug: string; nameRu: string; nameEn: string }[];
   cities: string[];
   regions: string[];
@@ -31,6 +35,7 @@ export function DiscoveryFilters({
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
+  const [open, setOpen] = useState(true);
   const categoryName = (item: { nameRu: string; nameEn: string }) =>
     locale === "en" ? item.nameEn : item.nameRu;
 
@@ -59,6 +64,7 @@ export function DiscoveryFilters({
 
   const appliedKey = [
     query.q,
+    query.scope,
     query.category,
     query.city,
     query.region,
@@ -76,81 +82,118 @@ export function DiscoveryFilters({
         event.preventDefault();
         apply(new FormData(event.currentTarget));
       }}
-      className="rounded-xl border bg-card p-4"
+      className="rounded-xl border bg-card p-4 shadow-sm"
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="md:col-span-2 xl:col-span-2">
-          <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("search")}</span>
-          <Input name="q" defaultValue={query.q} placeholder={t("searchPlaceholder")} />
-        </label>
-        <Select name="category" label={t("category")} defaultValue={query.category}>
-          <option value="">{t("any")}</option>
-          {categories.map((item) => (
-            <option key={item.slug} value={item.slug}>
-              {categoryName(item)}
-            </option>
-          ))}
-        </Select>
-        <Select name="sort" label={t("sort")} defaultValue={query.sort}>
-          <option value="name">{t("sortName")}</option>
-          <option value="relevance">{t("sortRelevance")}</option>
-          <option value="price">{t("sortPrice")}</option>
-          <option value="moq">{t("sortMoq")}</option>
-        </Select>
-        <Select name="city" label={t("city")} defaultValue={query.city}>
-          <option value="">{t("any")}</option>
-          {cities.map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </Select>
-        <Select name="region" label={t("region")} defaultValue={query.region}>
-          <option value="">{t("any")}</option>
-          {regions.map((region) => (
-            <option key={region} value={region}>
-              {region}
-            </option>
-          ))}
-        </Select>
-        <Select name="type" label={t("type")} defaultValue={query.type}>
-          <option value="">{t("any")}</option>
-          {types.map((type) => (
-            <option key={type} value={type}>
-              {catalog(`types.${type}`)}
-            </option>
-          ))}
-        </Select>
-        <label>
-          <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("maxPrice")}</span>
-          <Input name="maxPrice" inputMode="decimal" defaultValue={query.maxPrice ?? ""} />
-        </label>
-        <label>
+      <button
+        type="button"
+        className="flex items-center gap-2 text-sm font-medium"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+        {t("filtersTitle")}
+      </button>
+      <div className={open ? "mt-4 space-y-3" : "hidden"}>
+        <div className="grid gap-3 lg:grid-cols-4">
+          <label className="lg:col-span-2">
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("search")}</span>
+            <span className="flex h-10 items-center rounded-lg border bg-card focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+              <Search className="ml-3 size-4 shrink-0 text-muted-foreground" />
+              <input
+                name="q"
+                defaultValue={query.q}
+                placeholder={t("searchPlaceholder")}
+                className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </span>
+          </label>
+          <Select name="category" label={t("category")} defaultValue={query.category}>
+            <option value="">{t("any")}</option>
+            {categories.map((item) => (
+              <option key={item.slug} value={item.slug}>
+                {categoryName(item)}
+              </option>
+            ))}
+          </Select>
+          <Select name="sort" label={t("sort")} defaultValue={query.sort}>
+            <option value="name">{t("sortName")}</option>
+            <option value="relevance">{t("sortRelevance")}</option>
+            <option value="price">{t("sortPrice")}</option>
+            <option value="moq">{t("sortMoq")}</option>
+          </Select>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Select name="city" label={t("city")} defaultValue={query.city}>
+            <option value="">{t("any")}</option>
+            {cities.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </Select>
+          <Select name="region" label={t("region")} defaultValue={query.region}>
+            <option value="">{t("any")}</option>
+            {regions.map((region) => (
+              <option key={region} value={region}>
+                {region}
+              </option>
+            ))}
+          </Select>
+          <Select name="type" label={t("type")} defaultValue={query.type}>
+            <option value="">{t("any")}</option>
+            {types.map((type) => (
+              <option key={type} value={type}>
+                {catalog(`types.${type}`)}
+              </option>
+            ))}
+          </Select>
+          <label>
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("maxPrice")}</span>
+            <Input
+              name="maxPrice"
+              inputMode="decimal"
+              defaultValue={query.maxPrice ?? ""}
+              placeholder={t("pricePlaceholder")}
+              className="h-10 rounded-lg"
+            />
+          </label>
+        </div>
+        <label className="block max-w-xs">
           <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("maxMoq")}</span>
-          <Input name="maxMoq" inputMode="decimal" defaultValue={query.maxMoq ?? ""} />
-        </label>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="certified"
-            defaultChecked={query.certified}
-            className="size-4 accent-primary"
+          <Input
+            name="maxMoq"
+            inputMode="decimal"
+            defaultValue={query.maxMoq ?? ""}
+            placeholder={t("moqPlaceholder")}
+            className="h-10 rounded-lg"
           />
-          {t("certified")}
         </label>
-        <Button type="submit" size="sm">
-          {t("apply")}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(pathname)}
-        >
-          {t("clear")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+          <label className="mr-auto flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="certified"
+              defaultChecked={query.certified}
+              className="size-4 accent-primary"
+            />
+            {t("certified")}
+            <Info className="size-3.5 text-muted-foreground" aria-label={t("certifiedHint")}>
+              <title>{t("certifiedHint")}</title>
+            </Info>
+          </label>
+          <Button type="submit">{t("applyCount", { count: total })}</Button>
+          <Button type="button" variant="outline" onClick={() => router.push(pathname)}>
+            {t("clearAll")}
+          </Button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => setOpen(false)}
+          >
+            {t("collapseFilters")}
+            <ChevronDown className="size-4" />
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -173,7 +216,7 @@ function Select({
       <select
         name={name}
         defaultValue={defaultValue}
-        className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="h-10 w-full rounded-lg border bg-card px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         {children}
       </select>

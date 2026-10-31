@@ -29,22 +29,6 @@ export function moqLine(supplier: CatalogSupplier, locale: string, from: (value:
   );
 }
 
-export type CertSummary =
-  | { kind: "none" }
-  | { kind: "demo" }
-  | { kind: "verified"; count: number }
-  | { kind: "unverified" }
-  | { kind: "expired" };
-
-export function certificationSummary(supplier: CatalogSupplier): CertSummary {
-  if (supplier.dataType === "DEMO" && supplier.certifications.length > 0) return { kind: "demo" };
-  if (supplier.certifications.length === 0) return { kind: "none" };
-  const verified = supplier.certifications.filter((item) => item.status === "VERIFIED").length;
-  if (verified > 0) return { kind: "verified", count: verified };
-  if (supplier.certifications.every((item) => item.status === "EXPIRED")) return { kind: "expired" };
-  return { kind: "unverified" };
-}
-
 export function placeLine(supplier: Pick<CatalogSupplier, "city" | "region">) {
   return [supplier.city, supplier.region].filter(Boolean).join(", ");
 }

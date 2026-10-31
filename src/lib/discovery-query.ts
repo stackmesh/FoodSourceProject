@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const sorts = ["relevance", "price", "moq", "name"] as const;
+const scopes = ["all", "name", "product", "place"] as const;
 const supplierTypes = [
   "MANUFACTURER",
   "DISTRIBUTOR",
@@ -12,10 +13,12 @@ const supplierTypes = [
 ] as const;
 
 export type SortKey = (typeof sorts)[number];
+export type SearchScope = (typeof scopes)[number];
 export type SupplierTypeFilter = (typeof supplierTypes)[number];
 
 export type DiscoveryQuery = {
   q: string;
+  scope: SearchScope;
   category: string;
   city: string;
   region: string;
@@ -29,6 +32,7 @@ export type DiscoveryQuery = {
 
 const inputSchema = z.object({
   q: z.string().trim().max(200).optional().default(""),
+  scope: z.string().trim().max(20).optional().default(""),
   category: z.string().trim().max(80).optional().default(""),
   city: z.string().trim().max(120).optional().default(""),
   region: z.string().trim().max(160).optional().default(""),
@@ -56,6 +60,10 @@ function isSort(value: string): value is SortKey {
   return sorts.some((sort) => sort === value);
 }
 
+function isScope(value: string): value is SearchScope {
+  return scopes.some((scope) => scope === value);
+}
+
 function isSupplierType(value: string): value is SupplierTypeFilter {
   return supplierTypes.some((type) => type === value);
 }
@@ -65,6 +73,7 @@ export function parseDiscoveryQuery(
 ): DiscoveryQuery {
   const parsed = inputSchema.parse({
     q: first(raw.q),
+    scope: first(raw.scope),
     category: first(raw.category),
     city: first(raw.city),
     region: first(raw.region),
@@ -80,6 +89,7 @@ export function parseDiscoveryQuery(
 
   return {
     q: parsed.q,
+    scope: isScope(parsed.scope) ? parsed.scope : "all",
     category,
     city: parsed.city,
     region: parsed.region,
@@ -100,6 +110,7 @@ export function toSearchParams(query: DiscoveryQuery, page = query.page) {
   const params = new URLSearchParams();
 
   if (query.q) params.set("q", query.q);
+  if (query.scope !== "all") params.set("scope", query.scope);
   if (query.category) params.set("category", query.category);
   if (query.city) params.set("city", query.city);
   if (query.region) params.set("region", query.region);

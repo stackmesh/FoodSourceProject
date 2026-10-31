@@ -139,7 +139,7 @@
     "expiredCerts": "Expired",
     "deliveryStated": "Stated, not a verified promise",
     "deliveryUnavailable": "Not available",
-    "score": "Match {score}",
+    "score": "Match {score}%",
     "scoreUnavailable": "Not enough comparable data",
     "scoreHint": "The score uses only comparable recorded facts. Missing data is excluded and is not treated as verified. A higher score does not guarantee a better supplier.",
     "verification": {
@@ -158,6 +158,12 @@
       "OTHER": "Other"
     },
     "certStatus": {
+      "VERIFIED": "Valid",
+      "EXPIRED": "Expired",
+      "UNVERIFIED": "Unverified",
+      "NONE": "None"
+    },
+    "certRecord": {
       "VERIFIED": "Certification verified",
       "UNVERIFIED": "Certification not verified",
       "EXPIRED": "Certification expired"
@@ -201,8 +207,20 @@
   "Discovery": {
     "title": "Suppliers",
     "description": "Search by name, product, and category. Filters stay in the page address.",
+    "filtersTitle": "Search and filters",
     "search": "Search",
     "searchPlaceholder": "Name, product, or category",
+    "scopeAll": "Search everywhere",
+    "scopeName": "Name",
+    "scopeProduct": "Product",
+    "scopePlace": "City or region",
+    "pricePlaceholder": "For example, 500",
+    "moqPlaceholder": "For example, 100 kg",
+    "applyCount": "Show {count}",
+    "clearAll": "Reset all",
+    "collapseFilters": "Hide filters",
+    "expandFilters": "Show filters",
+    "certifiedHint": "Demonstration certificates and expired records do not pass this filter.",
     "category": "Category",
     "city": "City",
     "region": "Region",
@@ -239,6 +257,11 @@
     "category": "Category",
     "updated": "Price as of",
     "delivery": "Delivery",
+    "priceRange": "Price range",
+    "minimumOrder": "Minimum order",
+    "certCheck": "Verification status",
+    "deliveryPromise": "Confirmed commitment",
+    "deliveryUnconfirmed": "Not confirmed",
     "noDocument": "No document attached",
     "document": "Document",
     "sources": "Sources",

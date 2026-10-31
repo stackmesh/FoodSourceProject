@@ -1,7 +1,8 @@
+import { Layers } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
-import { CardSkeletonGrid, EmptyState, ErrorState, PageIntro } from "@/components/catalog/chrome";
+import { CardSkeletonGrid, EmptyState, ErrorState } from "@/components/catalog/chrome";
 import { DiscoveryFilters } from "@/components/catalog/discovery-filters";
 import { SupplierCard } from "@/components/catalog/supplier-card";
 import { Link } from "@/i18n/navigation";
@@ -30,11 +31,9 @@ export default async function SuppliersPage({
 }) {
   const locale = assertLocale((await params).locale);
   setRequestLocale(locale);
-  const t = await getTranslations("Discovery");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
-      <PageIntro title={t("title")} description={t("description")} />
       <Suspense fallback={<CardSkeletonGrid />}>
         <DiscoveryResults locale={locale} searchParams={searchParams} />
       </Suspense>
@@ -63,14 +62,18 @@ async function DiscoveryResults({
       <div className="space-y-4">
         <DiscoveryFilters
           query={{ ...query, page: result.page }}
+          total={result.total}
           categories={result.facets.categories}
           cities={result.facets.cities}
           regions={result.facets.regions}
         />
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <p className="text-sm text-muted-foreground">{t("results", { count: result.total })}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="inline-flex items-center gap-2 text-sm font-medium">
+            <Layers className="size-4 text-primary" />
+            {t("results", { count: result.total })}
+          </p>
           {result.showScore ? (
-            <p className="max-w-xl text-xs leading-5 text-muted-foreground">{t("scoreNote")}</p>
+            <p className="max-w-xl text-xs leading-5 text-primary">{t("scoreNote")}</p>
           ) : null}
         </div>
         {result.items.length === 0 ? (

@@ -1,4 +1,6 @@
+import { CertificateStatus } from "@/components/catalog/badges";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
+import { supplierCertificateMark, type CertificateMark } from "@/lib/certificate-mark";
 import { ContactStatusForm, DeleteNoteButton, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
@@ -13,6 +15,7 @@ type Cell = {
   best: boolean;
   note?: string;
   noteTone?: "positive" | "caution" | "neutral";
+  certificate?: CertificateMark;
   status?: FactorStatus;
   points?: number | null;
   statusLabel?: string;
@@ -129,7 +132,12 @@ function CellBody({ cell }: { cell: Cell }) {
 
   return (
     <>
-      <div className="whitespace-pre-line">{cell.text}</div>
+      {cell.certificate ? (
+        <div className="mb-1">
+          <CertificateStatus mark={cell.certificate} />
+        </div>
+      ) : null}
+      {cell.text ? <div className="whitespace-pre-line">{cell.text}</div> : null}
       {cell.status && cell.statusLabel ? (
         <div className="mt-1">
           <FactorChip status={cell.status} points={cell.points ?? null} label={cell.statusLabel} />
@@ -330,9 +338,8 @@ function buildRows(
         const report = byId.get(supplier.id);
         const counted = (report?.verifiedCertifications ?? 0) > 0;
         return {
-          text: supplier.certifications.length
-            ? supplier.certifications.map((item) => item.name).join("\n")
-            : catalog("noCerts"),
+          text: supplier.certifications.map((item) => item.name).join("\n"),
+          certificate: supplierCertificateMark(supplier),
           best: false,
           note: supplier.certifications.length && !counted ? t("unverifiedCert") : undefined,
           noteTone: supplier.certifications.length && !counted ? "caution" : undefined,

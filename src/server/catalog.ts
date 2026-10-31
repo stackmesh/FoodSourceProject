@@ -68,6 +68,7 @@ function mapSupplier(row: {
     id: string;
     name: string;
     documentUrl: string | null;
+    sourceUrl: string | null;
     issuer: string | null;
     status: CatalogSupplier["certifications"][number]["status"];
     expiresAt: Date | null;

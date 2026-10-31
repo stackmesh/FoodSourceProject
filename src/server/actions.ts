@@ -11,20 +11,14 @@ import {
   parseCompareSlugs,
   parseMatchContext,
 } from "@/lib/comparison";
+import { calendarToday, isContactMethod, isContactStatus, parseContactDate } from "@/lib/contact-tracking";
 import { getPrisma } from "@/lib/prisma";
 
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const idSchema = z.string().regex(
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 );
-const contactStatusSchema = z.enum([
-  "NOT_CONTACTED",
-  "TO_CONTACT",
-  "CONTACTED",
-  "REPLIED",
-  "QUALIFIED",
-  "REJECTED",
-]);
+const contactPersonSchema = z.string().trim().max(120);
 
 export type FavoriteState = { ok: true; saved: boolean } | { ok: false; error: "invalid" | "missing" };
 export type CompareState =
@@ -52,7 +46,7 @@ const cookieOptions = {
 
 async function writeCompareCookie(slugs: string[]) {
   const jar = await cookies();
-  jar.set(compareCookieName, slugs.join(","), cookieOptions);
+  jar.set(compareCookieName, slugs.join(","), { ...cookieOptions, httpOnly: false });
 }
 
 async function rememberMatchContext(formData: FormData) {
@@ -246,18 +240,47 @@ export async function updateContactStatus(
   formData: FormData,
 ): Promise<StatusState> {
   const supplierId = idSchema.safeParse(String(formData.get("supplierId") ?? ""));
-  const status = contactStatusSchema.safeParse(String(formData.get("status") ?? ""));
-  if (!supplierId.success || !status.success) {
+  const statusText = String(formData.get("status") ?? "");
+  if (!supplierId.success || !isContactStatus(statusText)) {
     return { ok: false, error: "invalid" };
   }
 
-  const updated = await getPrisma().shortlist.updateMany({
-    where: { workspaceKey: demoWorkspaceKey, supplierId: supplierId.data },
-    data: { contactStatus: status.data },
+  const supplier = await getPrisma().supplier.findUnique({
+    where: { id: supplierId.data },
+    select: { id: true },
   });
-  if (updated.count === 0) {
-    return { ok: false, error: "missing" };
+  if (!supplier) return { ok: false, error: "missing" };
+
+  const details = formData.get("details") === "1";
+  const data: {
+    contactStatus: typeof statusText;
+    lastContactOn?: Date | null;
+    nextFollowUpOn?: Date | null;
+    contactPerson?: string | null;
+    contactMethod?: "EMAIL" | "PHONE" | "WEBSITE" | "OTHER" | null;
+  } = { contactStatus: statusText };
+
+  if (details) {
+    const person = contactPersonSchema.safeParse(String(formData.get("contactPerson") ?? ""));
+    const last = parseContactDate(String(formData.get("lastContactOn") ?? ""));
+    const next = parseContactDate(String(formData.get("nextFollowUpOn") ?? ""));
+    const methodText = String(formData.get("contactMethod") ?? "").trim();
+    if (!person.success || !last.ok || !next.ok) return { ok: false, error: "invalid" };
+    if (methodText && !isContactMethod(methodText)) return { ok: false, error: "invalid" };
+    if (last.date && last.date > calendarToday()) return { ok: false, error: "invalid" };
+    data.lastContactOn = last.date ? new Date(`${last.date}T00:00:00.000Z`) : null;
+    data.nextFollowUpOn = next.date ? new Date(`${next.date}T00:00:00.000Z`) : null;
+    data.contactPerson = person.data || null;
+    data.contactMethod = methodText && isContactMethod(methodText) ? methodText : null;
   }
+
+  await getPrisma().shortlist.upsert({
+    where: {
+      workspaceKey_supplierId: { workspaceKey: demoWorkspaceKey, supplierId: supplier.id },
+    },
+    create: { workspaceKey: demoWorkspaceKey, supplierId: supplier.id, ...data },
+    update: data,
+  });
 
   refresh();
   return { ok: true };

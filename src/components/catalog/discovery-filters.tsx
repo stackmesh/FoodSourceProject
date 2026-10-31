@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ChevronDown, Info, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { contactStatuses } from "@/lib/contact-tracking";
 import type { DiscoveryQuery, SupplierTypeFilter } from "@/lib/discovery-query";
 import { usePathname, useRouter } from "@/i18n/navigation";
 
@@ -47,6 +48,7 @@ export function DiscoveryFilters({
       city: String(formData.get("city") ?? ""),
       region: String(formData.get("region") ?? ""),
       type: String(formData.get("type") ?? ""),
+      contact: String(formData.get("contact") ?? ""),
       maxPrice: String(formData.get("maxPrice") ?? "").trim(),
       maxMoq: String(formData.get("maxMoq") ?? "").trim(),
     };
@@ -73,6 +75,7 @@ export function DiscoveryFilters({
     query.certified ? "1" : "",
     query.maxPrice ?? "",
     query.maxMoq ?? "",
+    query.contact,
   ].join("\n");
 
   return (
@@ -140,6 +143,14 @@ export function DiscoveryFilters({
               </option>
             ))}
           </Select>
+          <Select name="contact" label={t("contact")} defaultValue={query.contact}>
+            <option value="">{t("any")}</option>
+            {contactStatuses.map((status) => (
+              <option key={status} value={status}>
+                {catalog(`contactStatus.${status}`)}
+              </option>
+            ))}
+          </Select>
           <Select name="type" label={t("type")} defaultValue={query.type}>
             <option value="">{t("any")}</option>
             {types.map((type) => (
@@ -148,6 +159,8 @@ export function DiscoveryFilters({
               </option>
             ))}
           </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <label>
             <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("maxPrice")}</span>
             <Input
@@ -158,17 +171,17 @@ export function DiscoveryFilters({
               className="h-10 rounded-lg"
             />
           </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("maxMoq")}</span>
+            <Input
+              name="maxMoq"
+              inputMode="decimal"
+              defaultValue={query.maxMoq ?? ""}
+              placeholder={t("moqPlaceholder")}
+              className="h-10 rounded-lg"
+            />
+          </label>
         </div>
-        <label className="block max-w-xs">
-          <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("maxMoq")}</span>
-          <Input
-            name="maxMoq"
-            inputMode="decimal"
-            defaultValue={query.maxMoq ?? ""}
-            placeholder={t("moqPlaceholder")}
-            className="h-10 rounded-lg"
-          />
-        </label>
         <div className="flex flex-wrap items-center gap-3 border-t pt-4">
           <label className="mr-auto flex items-center gap-2 text-sm">
             <input

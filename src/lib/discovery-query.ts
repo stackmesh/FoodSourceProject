@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isContactStatus, type ContactStatus } from "@/lib/contact-tracking";
 
 const sorts = ["relevance", "match", "price", "moq", "name"] as const;
 const scopes = ["all", "name", "product", "place"] as const;
@@ -24,6 +25,7 @@ export type DiscoveryQuery = {
   region: string;
   type: SupplierTypeFilter | "";
   certified: boolean;
+  contact: ContactStatus | "";
   maxPrice: number | null;
   maxMoq: number | null;
   sort: SortKey;
@@ -38,6 +40,7 @@ const inputSchema = z.object({
   region: z.string().trim().max(160).optional().default(""),
   type: z.string().trim().max(40).optional().default(""),
   certified: z.string().trim().max(8).optional().default(""),
+  contact: z.string().trim().max(40).optional().default(""),
   maxPrice: z.string().trim().max(20).optional().default(""),
   maxMoq: z.string().trim().max(20).optional().default(""),
   sort: z.string().trim().max(20).optional().default(""),
@@ -79,6 +82,7 @@ export function parseDiscoveryQuery(
     region: first(raw.region),
     type: first(raw.type),
     certified: first(raw.certified),
+    contact: first(raw.contact),
     maxPrice: first(raw.maxPrice),
     maxMoq: first(raw.maxMoq),
     sort: first(raw.sort),
@@ -95,6 +99,7 @@ export function parseDiscoveryQuery(
     region: parsed.region,
     type: isSupplierType(parsed.type) ? parsed.type : "",
     certified: parsed.certified === "1",
+    contact: isContactStatus(parsed.contact) ? parsed.contact : "",
     maxPrice: numberOrNull(parsed.maxPrice),
     maxMoq: numberOrNull(parsed.maxMoq),
     sort: isSort(parsed.sort) ? parsed.sort : "name",
@@ -116,6 +121,7 @@ export function toSearchParams(query: DiscoveryQuery, page = query.page) {
   if (query.region) params.set("region", query.region);
   if (query.type) params.set("type", query.type);
   if (query.certified) params.set("certified", "1");
+  if (query.contact) params.set("contact", query.contact);
   if (query.maxPrice != null) params.set("maxPrice", String(query.maxPrice));
   if (query.maxMoq != null) params.set("maxMoq", String(query.maxMoq));
   if (query.sort !== "name") params.set("sort", query.sort);

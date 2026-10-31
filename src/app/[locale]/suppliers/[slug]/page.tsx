@@ -7,6 +7,7 @@ import { SupplierProfile } from "@/components/catalog/supplier-profile";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
 import { hasRankingContext, parseDiscoveryQuery, toSearchParams } from "@/lib/discovery-query";
+import { requestCalendarToday } from "@/lib/today";
 import { getSupplier, getWorkspace, scoreSupplier } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
@@ -77,6 +78,7 @@ async function Detail({
       listHref={loaded.listHref}
       matchContext={loaded.matchContext}
       scoreBasis={loaded.scoreBasis}
+      today={loaded.today}
     />
   );
 }
@@ -87,7 +89,7 @@ async function loadDetail(slug: string, rawQuery: Record<string, string | string
     const query = parseDiscoveryQuery(rawQuery);
     const ranked = hasRankingContext(query);
     const scoreBasis = ranked ? ("search" as const) : ("catalog" as const);
-    const [supplier, workspace] = await Promise.all([getSupplier(slug), getWorkspace()]);
+    const [supplier, workspace, today] = await Promise.all([getSupplier(slug), getWorkspace(), requestCalendarToday()]);
     const report = supplier ? await scoreSupplier(supplier, query) : null;
     const search = toSearchParams(query).toString();
 
@@ -96,6 +98,7 @@ async function loadDetail(slug: string, rawQuery: Record<string, string | string
       workspace,
       report,
       scoreBasis,
+      today,
       listHref: search ? `/suppliers?${search}` : "/suppliers",
       matchContext: ranked
         ? {

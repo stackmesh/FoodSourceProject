@@ -3,10 +3,12 @@ import { Suspense } from "react";
 import { EmptyState, ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
 import { SupplierBadges } from "@/components/catalog/badges";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
-import { ContactStatusForm, NoteEditor } from "@/components/catalog/workspace-forms";
+import { ContactTracking, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
-import { formatMoney } from "@/lib/format";
+import { contactStatuses, isContactStatus, isOverdueFollowUp } from "@/lib/contact-tracking";
+import { formatCalendarDate, formatMoney } from "@/lib/format";
+import { requestCalendarToday } from "@/lib/today";
 import { getCatalog, getWorkspace } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
@@ -22,8 +24,10 @@ export async function generateMetadata({
 
 export default async function FavoritesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const locale = assertLocale((await params).locale);
   setRequestLocale(locale);
@@ -33,16 +37,24 @@ export default async function FavoritesPage({
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
       <PageIntro title={t("title")} description={t("description")} />
       <Suspense fallback={<PanelSkeleton />}>
-        <FavoriteList locale={locale} />
+        <FavoriteList locale={locale} searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function FavoriteList({ locale }: { locale: string }) {
+async function FavoriteList({
+  locale,
+  searchParams,
+}: {
+  locale: string;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations("Favorites");
   const catalog = await getTranslations("Catalog");
-  const saved = await loadFavorites();
+  const requested = (await searchParams).contact;
+  const contact = typeof requested === "string" && isContactStatus(requested) ? requested : "";
+  const [saved, today] = await Promise.all([loadFavorites(), requestCalendarToday()]);
 
   if (!saved) {
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
@@ -59,10 +71,26 @@ async function FavoriteList({ locale }: { locale: string }) {
       );
     }
 
+    const visible = contact ? saved.filter((item) => item.entry.contactStatus === contact) : saved;
+
     return (
+      <div className="space-y-4">
+      <nav className="flex flex-wrap gap-2" aria-label={t("filter")}>
+        <FilterLink href="/favorites" active={contact === ""}>
+          {t("anyStatus")}
+        </FilterLink>
+        {contactStatuses.map((status) => (
+          <FilterLink key={status} href={`/favorites?contact=${status}`} active={contact === status}>
+            {catalog(`contactStatus.${status}`)}
+          </FilterLink>
+        ))}
+      </nav>
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("filterEmpty")}</p>
+      ) : null}
       <ul className="space-y-4">
-        {saved.map(({ supplier, entry }) => (
-          <li key={supplier.id} className="rounded-xl border bg-card p-4">
+        {visible.map(({ supplier, entry }) => (
+          <li key={supplier.id} className={`rounded-xl border bg-card p-4 ${isOverdueFollowUp(entry.nextFollowUpOn, today) ? "border-amber-300" : ""}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <SupplierBadges supplier={supplier} />
@@ -77,14 +105,17 @@ async function FavoriteList({ locale }: { locale: string }) {
                     ? ""
                     : ` · ${catalog("priceFrom", { value: formatMoney(supplier.minPrice, locale) })}`}
                 </p>
+                {entry.nextFollowUpOn ? (
+                  <p className={`mt-1 text-xs ${isOverdueFollowUp(entry.nextFollowUpOn, today) ? "font-medium text-amber-800" : "text-muted-foreground"}`}>
+                    {catalog("followUp")}: {formatCalendarDate(entry.nextFollowUpOn, locale)}
+                    {isOverdueFollowUp(entry.nextFollowUpOn, today) ? ` · ${catalog("overdue")}` : ""}
+                  </p>
+                ) : null}
               </div>
               <FavoriteButton supplierId={supplier.id} saved />
             </div>
             <div className="mt-4 space-y-4 border-t pt-4">
-              <div>
-                <h3 className="mb-2 text-sm font-medium">{t("status")}</h3>
-                <ContactStatusForm supplierId={supplier.id} status={entry.contactStatus} />
-              </div>
+              <ContactTracking supplierId={supplier.id} entry={entry} today={today} locale={locale} />
               <div className="space-y-3">
                 <h3 className="text-sm font-medium">{t("notes")}</h3>
                 {entry.notes.map((note) => (
@@ -96,7 +127,20 @@ async function FavoriteList({ locale }: { locale: string }) {
           </li>
         ))}
       </ul>
+      </div>
     );
+}
+
+function FilterLink({ href, active, children }: { href: string; active: boolean; children: string }) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-full border px-3 py-1 text-xs font-medium ${active ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent"}`}
+      aria-current={active ? "true" : undefined}
+    >
+      {children}
+    </Link>
+  );
 }
 
 async function loadFavorites() {

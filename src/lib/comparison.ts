@@ -45,6 +45,20 @@ function clip(value: unknown, max: number) {
   return value.trim().slice(0, max);
 }
 
+export function compareSlugsFromCookieString(cookieHeader: string) {
+  const part = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${compareCookieName}=`));
+  if (!part) return null;
+
+  try {
+    return parseCompareSlugs(decodeURIComponent(part.slice(compareCookieName.length + 1)));
+  } catch {
+    return [];
+  }
+}
+
 export function parseCompareSlugs(value: string | undefined) {
   if (!value) {
     return [];

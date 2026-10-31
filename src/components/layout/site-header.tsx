@@ -14,6 +14,7 @@ import {
 import { isNavItemActive, navigation } from "@/config/navigation";
 import { siteConfig } from "@/config/site";
 import { Link, usePathname } from "@/i18n/navigation";
+import { CompareMembershipSync } from "@/components/catalog/compare-membership";
 import { LanguageSwitcher } from "./language-switcher";
 
 const headerLinks = navigation.filter((item) =>
@@ -25,7 +26,12 @@ const headerLinks = navigation.filter((item) =>
 
 export function SiteHeader() {
   const pathname = usePathname();
-  return <HeaderBar pathname={pathname} />;
+  return (
+    <>
+      <CompareMembershipSync />
+      <HeaderBar pathname={pathname} />
+    </>
+  );
 }
 
 export function SiteHeaderFallback() {

@@ -1,5 +1,6 @@
 import type {
   CertificationStatus,
+  ContactMethod,
   ContactStatus,
   ContactType,
   DataType,
@@ -81,6 +82,11 @@ export type WorkspaceNote = {
 export type WorkspaceEntry = {
   supplierId: string;
   contactStatus: ContactStatus;
+  lastContactOn: string | null;
+  nextFollowUpOn: string | null;
+  contactPerson: string | null;
+  contactMethod: ContactMethod | null;
+  updatedAt: string;
   notes: WorkspaceNote[];
 };
 

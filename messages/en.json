@@ -206,12 +206,26 @@
     },
     "contactStatus": {
       "NOT_CONTACTED": "Not contacted",
-      "TO_CONTACT": "Contact planned",
       "CONTACTED": "Contacted",
-      "REPLIED": "Reply received",
-      "QUALIFIED": "Offer received",
-      "REJECTED": "Not a fit"
+      "AWAITING_RESPONSE": "Awaiting response",
+      "RESPONDED": "Responded",
+      "NEGOTIATING": "Negotiating",
+      "QUALIFIED": "Qualified",
+      "REJECTED": "Rejected"
     },
+    "contactMethodOption": {
+      "EMAIL": "Email",
+      "PHONE": "Phone",
+      "WEBSITE": "Website",
+      "OTHER": "Other"
+    },
+    "lastContact": "Last contact",
+    "followUp": "Next follow-up",
+    "contactPerson": "Contact person",
+    "contactMethod": "Contact method",
+    "overdue": "Follow-up overdue",
+    "activity": "Activity",
+    "updated": "Updated",
     "contactType": {
       "PHONE": "Phone",
       "EMAIL": "Email",
@@ -261,6 +275,7 @@
     "city": "City",
     "region": "Region",
     "type": "Type",
+    "contact": "Contact status",
     "any": "All",
     "certified": "Real certification records only",
     "maxPrice": "Price up to, RUB",
@@ -304,7 +319,7 @@
     "sources": "Sources",
     "contacts": "Contacts",
     "workspace": "Shortlist and notes",
-    "saveFirst": "Save this supplier to track contact status and notes.",
+    "saveFirst": "Saving a status or a note adds this supplier to the shortlist. A supplier stays not contacted until you choose another status.",
     "errorTitle": "Profile did not load",
     "errorText": "This supplier could not be read. Open the page again.",
     "retry": "Try again"
@@ -416,6 +431,9 @@
     "description": "The demo workspace shortlist. Notes and contact status are stored in the database.",
     "status": "Contact status",
     "notes": "Notes",
+    "filter": "Contact status",
+    "anyStatus": "Any status",
+    "filterEmpty": "No saved suppliers have this status.",
     "emptyTitle": "No saved suppliers",
     "emptyText": "Save a supplier from the catalog to keep notes and a contact status.",
     "emptyAction": "Open the catalog",

@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { demoWorkspaceKey } from "@/config/site";
 import { foldSearchText, type DiscoveryQuery } from "@/lib/discovery-query";
 import { getPrisma } from "@/lib/prisma";
 import { cohortFromProductRows, sqlUnitKey } from "@/server/matching";
@@ -62,6 +63,29 @@ function whereSql(query: DiscoveryQuery, like: string) {
         AND s."dataType" = 'REAL'
         AND cert."status" IN ('VERIFIED', 'UNVERIFIED')
     )`);
+  }
+
+  if (query.contact) {
+    const tracked = Prisma.sql`EXISTS (
+      SELECT 1
+      FROM "Shortlist" sl
+      WHERE sl."supplierId" = s."id"
+        AND sl."workspaceKey" = ${demoWorkspaceKey}
+        AND sl."contactStatus"::text = ${query.contact}
+    )`;
+    filters.push(
+      query.contact === "NOT_CONTACTED"
+        ? Prisma.sql`(
+            ${tracked}
+            OR NOT EXISTS (
+              SELECT 1
+              FROM "Shortlist" sl
+              WHERE sl."supplierId" = s."id"
+                AND sl."workspaceKey" = ${demoWorkspaceKey}
+            )
+          )`
+        : tracked,
+    );
   }
 
   if (query.maxPrice != null) {

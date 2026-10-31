@@ -51,11 +51,19 @@ enum ContactType {
 
 enum ContactStatus {
   NOT_CONTACTED
-  TO_CONTACT
   CONTACTED
-  REPLIED
+  AWAITING_RESPONSE
+  RESPONDED
+  NEGOTIATING
   QUALIFIED
   REJECTED
+}
+
+enum ContactMethod {
+  EMAIL
+  PHONE
+  WEBSITE
+  OTHER
 }
 
 enum CertificationStatus {
@@ -194,12 +202,16 @@ model SupplierSource {
 }
 
 model Shortlist {
-  id            String        @id @default(uuid()) @db.Uuid
-  workspaceKey  String        @default("demo-workspace")
-  supplierId    String        @db.Uuid
-  contactStatus ContactStatus @default(NOT_CONTACTED)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id              String         @id @default(uuid()) @db.Uuid
+  workspaceKey    String         @default("demo-workspace")
+  supplierId      String         @db.Uuid
+  contactStatus   ContactStatus  @default(NOT_CONTACTED)
+  lastContactOn   DateTime?      @db.Date
+  nextFollowUpOn  DateTime?      @db.Date
+  contactPerson   String?
+  contactMethod   ContactMethod?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 

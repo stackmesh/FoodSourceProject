@@ -28,6 +28,11 @@ type SupplierRow = Awaited<
   ReturnType<ReturnType<typeof getPrisma>["supplier"]["findMany"]>
 >[number];
 
+function calendarDate(value: Date | null) {
+  if (!value) return null;
+  return value.toISOString().slice(0, 10);
+}
+
 function asNumber(value: { toString(): string } | null | undefined) {
   if (value == null) {
     return null;
@@ -354,6 +359,11 @@ export async function getWorkspace(): Promise<WorkspaceEntry[]> {
     return shortlists.map((entry) => ({
       supplierId: entry.supplierId,
       contactStatus: entry.contactStatus,
+      lastContactOn: calendarDate(entry.lastContactOn),
+      nextFollowUpOn: calendarDate(entry.nextFollowUpOn),
+      contactPerson: entry.contactPerson,
+      contactMethod: entry.contactMethod,
+      updatedAt: entry.updatedAt.toISOString(),
       notes: notesBySupplier.get(entry.supplierId) ?? [],
     }));
   } catch (error) {

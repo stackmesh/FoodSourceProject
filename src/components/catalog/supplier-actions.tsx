@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowLeftRight, Bookmark, Heart } from "lucide-react";
 import {
@@ -13,8 +13,39 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { syncCompareMembership, useCompareSlugs } from "@/components/catalog/compare-membership";
 import { Link } from "@/i18n/navigation";
 import { addToComparison, toggleFavorite } from "@/server/actions";
+
+const favoriteState = new Map<string, { saved: boolean; generation: number }>();
+const favoriteListeners = new Map<string, Set<() => void>>();
+let favoriteGeneration = 0;
+
+function publishFavorite(supplierId: string, saved: boolean) {
+  favoriteGeneration += 1;
+  favoriteState.set(supplierId, { saved, generation: favoriteGeneration });
+  favoriteListeners.get(supplierId)?.forEach((listener) => listener());
+}
+
+function subscribeFavorite(supplierId: string, listener: () => void) {
+  let bucket = favoriteListeners.get(supplierId);
+  if (!bucket) {
+    bucket = new Set();
+    favoriteListeners.set(supplierId, bucket);
+  }
+  bucket.add(listener);
+  return () => {
+    bucket.delete(listener);
+  };
+}
+
+function useFavoriteEntry(supplierId: string) {
+  return useSyncExternalStore(
+    (listener) => subscribeFavorite(supplierId, listener),
+    () => favoriteState.get(supplierId) ?? null,
+    () => null,
+  );
+}
 
 export function FavoriteButton({
   supplierId,
@@ -27,11 +58,46 @@ export function FavoriteButton({
   appearance?: "text" | "labeled" | "icon" | "bookmark";
   className?: string;
 }) {
+  const entry = useFavoriteEntry(supplierId);
+  const currentSaved = entry?.saved ?? saved;
+
+  return (
+    <FavoriteButtonControl
+      key={`${appearance}:${entry?.generation ?? 0}:${currentSaved ? "1" : "0"}`}
+      supplierId={supplierId}
+      saved={currentSaved}
+      appearance={appearance}
+      className={className}
+    />
+  );
+}
+
+function FavoriteButtonControl({
+  supplierId,
+  saved,
+  appearance,
+  className,
+}: {
+  supplierId: string;
+  saved: boolean;
+  appearance: "text" | "labeled" | "icon" | "bookmark";
+  className?: string;
+}) {
   const t = useTranslations("Catalog");
   const [state, action, pending] = useActionState(toggleFavorite, null);
   const [open, setOpen] = useState(false);
   const isSaved = state?.ok ? state.saved : saved;
   const formId = `remove-favorite-${appearance}-${supplierId}`;
+  const [trackedSaved, setTrackedSaved] = useState(isSaved);
+
+  if (trackedSaved !== isSaved) {
+    setTrackedSaved(isSaved);
+    if (!isSaved) setOpen(false);
+  }
+
+  useLayoutEffect(() => {
+    if (state?.ok) publishFavorite(supplierId, state.saved);
+  }, [state, supplierId]);
 
   if (isSaved) {
     return (
@@ -45,7 +111,9 @@ export function FavoriteButton({
             if (!confirmed) {
               event.preventDefault();
               setOpen(true);
+              return;
             }
+            setOpen(false);
           }}
         >
           <input type="hidden" name="supplierId" value={supplierId} />
@@ -167,9 +235,49 @@ export function CompareButton({
   className?: string;
   showIcon?: boolean;
 }) {
+  const slugs = useCompareSlugs();
+  const member = slugs ? slugs.includes(slug) : active;
+
+  return (
+    <CompareControl
+      key={slugs ? slugs.join(",") : "server"}
+      slug={slug}
+      active={member}
+      context={context}
+      className={className}
+      showIcon={showIcon}
+    />
+  );
+}
+
+function CompareControl({
+  slug,
+  active,
+  context,
+  className,
+  showIcon = false,
+}: {
+  slug: string;
+  active: boolean;
+  context?: {
+    query: string;
+    category: string;
+    city: string;
+    region: string;
+    maxPrice?: string;
+    maxMoq?: string;
+    certified?: boolean;
+  };
+  className?: string;
+  showIcon?: boolean;
+}) {
   const t = useTranslations("Catalog");
   const [state, action, pending] = useActionState(addToComparison, null);
   const comparing = state?.ok ? state.comparing : active;
+
+  useLayoutEffect(() => {
+    if (state?.ok) syncCompareMembership();
+  }, [state]);
 
   if (comparing) {
     return (

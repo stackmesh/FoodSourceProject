@@ -10,7 +10,8 @@ import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
 import { parseDiscoveryQuery, toSearchParams } from "@/lib/discovery-query";
 import { defaultMatchWeights } from "@/server/matching";
-import { getSavedIds, searchSuppliers } from "@/server/catalog";
+import { requestCalendarToday } from "@/lib/today";
+import { getWorkspace, searchSuppliers } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
 export async function generateMetadata({
@@ -57,7 +58,7 @@ async function DiscoveryResults({
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
   }
 
-  const { result, savedIds, comparing } = loaded;
+  const { result, savedIds, tracking, today, comparing } = loaded;
 
   return (
       <div className="space-y-4">
@@ -94,7 +95,7 @@ async function DiscoveryResults({
             action={t("clear")}
           />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             {result.items.map(({ supplier, report }) => (
               <SupplierCard
                 key={supplier.id}
@@ -105,6 +106,8 @@ async function DiscoveryResults({
                 showScore={result.showScore}
                 report={report}
                 profileHref={profileHref(supplier.slug, query)}
+                tracking={tracking.get(supplier.id) ?? null}
+                today={today}
                 context={{
                   query: query.q,
                   category: query.category,
@@ -125,15 +128,18 @@ async function DiscoveryResults({
 
 async function loadDiscovery(query: ReturnType<typeof parseDiscoveryQuery>) {
   try {
-    const [result, savedIds, jar] = await Promise.all([
+    const [result, workspace, jar, today] = await Promise.all([
       searchSuppliers(query),
-      getSavedIds(),
+      getWorkspace(),
       cookies(),
+      requestCalendarToday(),
     ]);
 
     return {
       result,
-      savedIds,
+      savedIds: new Set(workspace.map((entry) => entry.supplierId)),
+      tracking: new Map(workspace.map((entry) => [entry.supplierId, entry])),
+      today,
       comparing: new Set(parseCompareSlugs(jar.get(compareCookieName)?.value)),
     };
   } catch (error) {

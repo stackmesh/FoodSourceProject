@@ -4,7 +4,7 @@ import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-act
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
 import { SourceMenu } from "@/components/catalog/source-menu";
 import {
-  ContactStatusForm,
+  ContactTracking,
   NoteEditor,
 } from "@/components/catalog/workspace-forms";
 import { Link } from "@/i18n/navigation";
@@ -46,6 +46,7 @@ export async function SupplierProfile({
   listHref,
   matchContext,
   scoreBasis,
+  today,
 }: {
   supplier: CatalogSupplier;
   locale: string;
@@ -55,6 +56,7 @@ export async function SupplierProfile({
   report: MatchReport | null;
   listHref: string;
   scoreBasis: "search" | "catalog";
+  today: string;
   matchContext?: {
     query: string;
     category: string;
@@ -392,20 +394,14 @@ export async function SupplierProfile({
               <Star className="size-4 text-muted-foreground" />
               {t("workspace")}
             </h2>
-            {workspace ? (
-              <div className="mt-3 space-y-4">
-                <ContactStatusForm supplierId={supplier.id} status={workspace.contactStatus} />
-                {workspace.notes.map((note) => (
-                  <NoteEditor key={note.id} supplierId={supplier.id} note={note} />
-                ))}
-                <NoteEditor supplierId={supplier.id} />
-              </div>
-            ) : (
-              <div className="mt-3 space-y-4">
-                <p className="text-sm leading-6 text-muted-foreground">{t("saveFirst")}</p>
-                <NoteEditor supplierId={supplier.id} />
-              </div>
-            )}
+            <div className="mt-3 space-y-4">
+              <ContactTracking supplierId={supplier.id} entry={workspace} today={today} locale={locale} />
+              {workspace ? null : <p className="text-sm leading-6 text-muted-foreground">{t("saveFirst")}</p>}
+              {workspace
+                ? workspace.notes.map((note) => <NoteEditor key={note.id} supplierId={supplier.id} note={note} />)
+                : null}
+              <NoteEditor supplierId={supplier.id} />
+            </div>
           </section>
         </aside>
       </div>

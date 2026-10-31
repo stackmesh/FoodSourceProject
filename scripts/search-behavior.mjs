@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import pg from "pg";
+import { getPrisma } from "../src/lib/prisma.ts";
 import { createSupplier, deleteSupplier, updateSupplier } from "../src/server/supplier-records.ts";
 import { getSupplier, scoreSupplier, searchSuppliers } from "../src/server/catalog.ts";
 import { parseDiscoveryQuery } from "../src/lib/discovery-query.ts";
@@ -240,6 +241,17 @@ const created = await createSupplier({
 });
 const createdSearch = await names({ q: "Временный", city: "Томск" });
 check("created supplier is searchable", createdSearch.slugs.includes("vremennyy-poisk"));
+const beforeTracking = await names({ q: "Временный", contact: "NOT_CONTACTED" });
+check("a supplier with no tracking row counts as not contacted", beforeTracking.slugs.includes("vremennyy-poisk"));
+await getPrisma().shortlist.create({
+  data: { workspaceKey: "demo-workspace", supplierId: created.id, contactStatus: "NEGOTIATING" },
+});
+const negotiating = await names({ q: "Временный", contact: "NEGOTIATING" });
+const rejected = await names({ q: "Временный", contact: "REJECTED" });
+const noLongerNew = await names({ q: "Временный", contact: "NOT_CONTACTED" });
+check("contact filter finds the negotiating supplier", negotiating.slugs.includes("vremennyy-poisk"));
+check("another status does not include that supplier", !rejected.slugs.includes("vremennyy-poisk"));
+check("not contacted no longer includes a tracked supplier", !noLongerNew.slugs.includes("vremennyy-poisk"));
 
 await updateSupplier(created.id, {
   name: "ДЕМО — Временный поиск обновлён",

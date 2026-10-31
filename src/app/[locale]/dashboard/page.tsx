@@ -1,11 +1,28 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
-import { ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
+import { ErrorState, PanelSkeleton } from "@/components/catalog/chrome";
+import { RefreshDashboard } from "@/components/catalog/refresh-dashboard";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
 import { formatDate } from "@/lib/format";
 import { DataError } from "@/server/catalog-types";
 import { getDashboard } from "@/server/catalog";
+import {
+  Apple,
+  Beef,
+  Bookmark,
+  Box,
+  ChevronRight,
+  CupSoda,
+  Fish,
+  MapPin,
+  Milk,
+  Package,
+  Snowflake,
+  Users,
+  Wheat,
+  type LucideIcon,
+} from "lucide-react";
 
 export async function generateMetadata({
   params,
@@ -28,7 +45,13 @@ export default async function DashboardPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
-      <PageIntro title={t("title")} description={t("description")} />
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{t("title")}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t("description")}</p>
+        </div>
+        <RefreshDashboard label={t("refreshed")} pendingLabel={t("refreshing")} />
+      </div>
       <Suspense fallback={<PanelSkeleton />}>
         <DashboardContent locale={locale} />
       </Suspense>
@@ -45,63 +68,172 @@ async function DashboardContent({ locale }: { locale: string }) {
   }
 
   const stats = [
-      { label: t("suppliers"), value: data.supplierCount, hint: t("supplierHint") },
-      { label: t("categories"), value: data.categoryCount, hint: t("categoryHint") },
-      { label: t("regions"), value: data.regionCount, hint: t("regionHint") },
-      { label: t("saved"), value: data.savedCount, hint: t("savedHint") },
-    ];
+    { label: t("suppliers"), value: data.supplierCount, hint: t("supplierHint"), icon: Users },
+    { label: t("categories"), value: data.categoryCount, hint: t("categoryHint"), icon: Box },
+    { label: t("regions"), value: data.regionCount, hint: t("regionHint"), icon: MapPin },
+    { label: t("saved"), value: data.savedCount, hint: t("savedHint"), icon: Bookmark },
+  ];
+  const maxCategory = Math.max(...data.popular.map((category) => category.count), 1);
 
-    return (
-      <div className="space-y-6">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {stats.map((stat) => (
-            <section key={stat.label} className="rounded-xl border bg-card p-4">
-              <h2 className="text-sm text-muted-foreground">{stat.label}</h2>
-              <p className="mt-2 text-3xl font-semibold tracking-tight">{stat.value}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{stat.hint}</p>
-            </section>
-          ))}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-xl border bg-card p-4">
-            <h2 className="text-base font-semibold">{t("recent")}</h2>
-            <ul className="mt-3 divide-y">
-              {data.recent.map((supplier) => (
-                <li key={supplier.id} className="flex items-center justify-between gap-3 py-3">
-                  <div>
-                    <Link href={`/suppliers/${supplier.slug}`} className="text-sm font-medium hover:text-primary">
-                      {supplier.name}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      {[supplier.city, supplier.region].filter(Boolean).join(", ")}
-                    </p>
-                  </div>
-                  <time className="shrink-0 text-xs text-muted-foreground" dateTime={supplier.createdAt}>
-                    {formatDate(supplier.createdAt, locale)}
-                  </time>
-                </li>
-              ))}
-            </ul>
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => (
+          <section key={stat.label} className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <stat.icon className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm text-muted-foreground">{stat.label}</h2>
+                <p className="text-3xl font-semibold tracking-tight text-primary">{stat.value}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{stat.hint}</p>
+              </div>
+            </div>
           </section>
-          <section className="rounded-xl border bg-card p-4">
-            <h2 className="text-base font-semibold">{t("popular")}</h2>
-            <ul className="mt-3 space-y-2">
-              {data.popular.map((category) => (
-                <li key={category.slug}>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">{t("recent")}</h2>
+            <Link
+              href="/suppliers"
+              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              {t("viewAll")}
+              <ChevronRight className="size-3.5" />
+            </Link>
+          </div>
+          <ul className="mt-2 divide-y">
+            {data.recent.map((supplier) => {
+              const place = [supplier.city, supplier.region].filter(Boolean).join(", ");
+              return (
+                <li key={supplier.id}>
                   <Link
-                    href={`/suppliers?category=${category.slug}`}
-                    className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-accent"
+                    href={`/suppliers/${supplier.slug}`}
+                    className="flex items-center gap-3 py-3 hover:text-primary"
                   >
-                    <span>{locale === "en" ? category.nameEn : category.nameRu}</span>
-                    <span className="text-muted-foreground">{category.count}</span>
+                    <span
+                      className={`flex size-10 shrink-0 items-center justify-center rounded-xl text-xs font-semibold ${avatarTone(supplier.slug)}`}
+                    >
+                      {initials(supplier.name)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-foreground">{supplier.name}</span>
+                      {place ? (
+                        <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="size-3 shrink-0" />
+                          <span className="truncate">{place}</span>
+                        </span>
+                      ) : null}
+                    </span>
+                    <time className="shrink-0 text-xs text-muted-foreground" dateTime={supplier.createdAt}>
+                      {formatDate(supplier.createdAt, locale)}
+                    </time>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </Link>
                 </li>
-              ))}
-            </ul>
-          </section>
-        </div>
+              );
+            })}
+          </ul>
+        </section>
+        <section className="rounded-xl border bg-card p-4 shadow-sm">
+          <h2 className="text-base font-semibold">{t("popular")}</h2>
+          <ul className="mt-4 space-y-4">
+            {data.popular.map((category) => {
+              const name = locale === "en" ? category.nameEn : category.nameRu;
+              const width = Math.max(8, Math.round((category.count / maxCategory) * 100));
+              const share = data.supplierCount === 0 ? 0 : (category.count / data.supplierCount) * 100;
+              const Icon = categoryIcon(category.slug);
+              const tone = categoryTone(category.slug);
+              return (
+                <li key={category.slug}>
+                  <Link href={`/suppliers?category=${category.slug}`} className="group block">
+                    <div className="flex items-center gap-3">
+                      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>
+                        <Icon className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium group-hover:text-primary">
+                        {name}
+                      </span>
+                      <span className="w-6 text-right text-sm tabular-nums">{category.count}</span>
+                      <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">
+                        {formatShare(share, locale)}
+                      </span>
+                    </div>
+                    <div className="mt-2 ml-11 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </div>
-    );
+    </div>
+  );
+}
+
+function formatShare(value: number, locale: string) {
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value)}%`;
+}
+
+function initials(name: string) {
+  const words = name
+    .replace(/[«»"']/g, " ")
+    .split(/[\s-]+/)
+    .map((word) => word.trim())
+    .filter(Boolean)
+    .filter((word) => !(word.length <= 5 && word === word.toUpperCase() && /^[A-ZА-ЯЁ0-9]+$/.test(word)));
+  const source = words.length ? words : [name];
+  const first = source[0] ?? name;
+  const second = source[1];
+  if (second?.[0]) return `${first[0] ?? ""}${second[0]}`.toLocaleUpperCase("ru");
+  const internal = first.slice(1).match(/[A-ZА-ЯЁ]/);
+  if (internal?.[0] && first[0]) return `${first[0]}${internal[0]}`.toLocaleUpperCase("ru");
+  return (first[0] ?? "?").toLocaleUpperCase("ru");
+}
+
+function avatarTone(slug: string) {
+  const tones = [
+    "bg-emerald-50 text-emerald-700",
+    "bg-sky-50 text-sky-700",
+    "bg-amber-50 text-amber-800",
+    "bg-violet-50 text-violet-700",
+    "bg-cyan-50 text-cyan-700",
+  ];
+  const index = [...slug].reduce((total, char) => total + char.charCodeAt(0), 0) % tones.length;
+  return tones[index] ?? tones[0];
+}
+
+function categoryIcon(slug: string): LucideIcon {
+  const icons: Record<string, LucideIcon> = {
+    meat: Beef,
+    fish: Fish,
+    produce: Apple,
+    dairy: Milk,
+    grocery: Wheat,
+    frozen: Snowflake,
+    drinks: CupSoda,
+    packaging: Package,
+  };
+  return icons[slug] ?? Package;
+}
+
+function categoryTone(slug: string) {
+  const tones: Record<string, string> = {
+    meat: "bg-rose-50 text-rose-600",
+    fish: "bg-sky-50 text-sky-600",
+    produce: "bg-emerald-50 text-emerald-600",
+    dairy: "bg-violet-50 text-violet-600",
+    grocery: "bg-amber-50 text-amber-700",
+    frozen: "bg-cyan-50 text-cyan-600",
+    drinks: "bg-orange-50 text-orange-600",
+    packaging: "bg-stone-100 text-stone-600",
+  };
+  return tones[slug] ?? "bg-muted text-muted-foreground";
 }
 
 async function loadDashboard() {

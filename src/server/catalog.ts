@@ -227,10 +227,10 @@ export async function getDashboard() {
       prisma.supplier.findMany({
         where: { isActive: true },
         include: supplierInclude,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { name: "asc" }],
         take: 5,
       }),
-      categoryCounts(6),
+      categoryCounts(),
     ]);
 
     return {

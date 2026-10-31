@@ -1,13 +1,19 @@
 import { CertificationBadge, SupplierBadges } from "@/components/catalog/badges";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import {
+  certificationSummary,
+  moqLine,
+  placeLine,
+  priceLine,
+} from "@/components/catalog/supplier-facts";
+import {
   ContactStatusForm,
   DeleteNoteButton,
   NoteEditor,
 } from "@/components/catalog/workspace-forms";
 import { Link } from "@/i18n/navigation";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
-import type { CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
+import type { CatalogContact, CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
 import { getTranslations } from "next-intl/server";
 
 export async function SupplierProfile({
@@ -30,6 +36,20 @@ export async function SupplierProfile({
     ...new Set(supplier.products.flatMap((product) => (product.deliveryNotes ? [product.deliveryNotes] : []))),
   ];
   const primarySource = supplier.sources[0];
+  const place = placeLine(supplier);
+  const price = priceLine(supplier, locale, (value) => catalog("priceFrom", { value }));
+  const moq = moqLine(supplier, locale, (value) => catalog("moqFrom", { value }));
+  const certs = certificationSummary(supplier);
+  const certText =
+    certs.kind === "demo"
+      ? catalog("demoCerts")
+      : certs.kind === "verified"
+        ? catalog("verifiedCerts", { count: certs.count })
+        : certs.kind === "unverified"
+          ? catalog("unverifiedCerts")
+          : certs.kind === "expired"
+            ? catalog("expiredCerts")
+            : catalog("noCerts");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
@@ -38,11 +58,13 @@ export async function SupplierProfile({
       </Link>
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <SupplierBadges supplier={supplier} />
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">{supplier.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {[supplier.city, supplier.region, supplier.country].filter(Boolean).join(", ")}
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{supplier.name}</h1>
+          <p className={`mt-1 text-sm ${place ? "text-foreground" : "text-muted-foreground"}`}>
+            {[place, supplier.country].filter(Boolean).join(", ") || catalog("unavailable")}
           </p>
+          <div className="mt-2">
+            <SupplierBadges supplier={supplier} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <FavoriteButton supplierId={supplier.id} saved={saved} />
@@ -56,7 +78,11 @@ export async function SupplierProfile({
             >
               {t("website")}
             </a>
-          ) : null}
+          ) : (
+            <span className="inline-flex h-8 items-center text-sm text-muted-foreground">
+              {t("website")}: {catalog("unavailable")}
+            </span>
+          )}
           {primarySource ? (
             <a
               href={primarySource.url}
@@ -66,61 +92,97 @@ export async function SupplierProfile({
             >
               {t("source")}
             </a>
-          ) : null}
+          ) : (
+            <span className="inline-flex h-8 items-center text-sm text-muted-foreground">
+              {t("source")}: {catalog("unavailable")}
+            </span>
+          )}
         </div>
       </div>
       {supplier.description ? (
         <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">{supplier.description}</p>
       ) : null}
+      <dl className="mt-4 grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryFact
+          label={catalog("price")}
+          value={price.kind === "missing" ? catalog("priceUnavailable") : price.text}
+          missing={price.kind === "missing"}
+        />
+        <SummaryFact
+          label={catalog("moq")}
+          value={moq.kind === "missing" ? catalog("moqUnavailable") : moq.text}
+          missing={moq.kind === "missing"}
+        />
+        <SummaryFact
+          label={catalog("certifications")}
+          value={certText}
+          missing={certs.kind === "none"}
+          caution={certs.kind !== "none" && certs.kind !== "verified"}
+        />
+        <SummaryFact
+          label={t("delivery")}
+          value={deliveryNotes.length ? catalog("deliveryStated") : catalog("deliveryUnavailable")}
+          missing={!deliveryNotes.length}
+          caution={deliveryNotes.length > 0}
+        />
+      </dl>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <section className="rounded-xl border bg-card p-4">
             <h2 className="text-base font-semibold">{t("products")}</h2>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead className="text-left text-xs text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-2 pr-3 font-medium">{t("product")}</th>
-                    <th className="py-2 pr-3 font-medium">{t("category")}</th>
-                    <th className="py-2 pr-3 font-medium">{catalog("price")}</th>
-                    <th className="py-2 pr-3 font-medium">{catalog("moq")}</th>
-                    <th className="py-2 font-medium">{t("updated")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplier.products.map((product) => (
-                    <tr key={product.id} className="border-b last:border-b-0">
-                      <td className="py-3 pr-3">{product.name}</td>
-                      <td className="py-3 pr-3 text-muted-foreground">{product[categoryKey]}</td>
-                      <td className="py-3 pr-3">
-                        {product.price == null
+            <ul className="mt-1 divide-y">
+              {supplier.products.map((product) => (
+                <li key={product.id} className="py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-sm font-medium">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product[categoryKey]}</p>
+                  </div>
+                  <dl className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <SummaryFact
+                      label={catalog("price")}
+                      value={
+                        product.price == null
                           ? catalog("priceUnavailable")
-                          : `${formatMoney(product.price, locale, product.currency)}${product.unit ? ` / ${product.unit}` : ""}`}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {product.moq == null
+                          : `${formatMoney(product.price, locale, product.currency)}${product.unit ? ` / ${product.unit}` : ""}`
+                      }
+                      missing={product.price == null}
+                    />
+                    <SummaryFact
+                      label={catalog("moq")}
+                      value={
+                        product.moq == null
                           ? catalog("moqUnavailable")
-                          : formatQuantity(product.moq, product.unit, locale)}
-                      </td>
-                      <td className="py-3 text-muted-foreground">
-                        {product.priceUpdatedAt ? formatDate(product.priceUpdatedAt, locale) : catalog("unavailable")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          : formatQuantity(product.moq, product.unit, locale)
+                      }
+                      missing={product.moq == null}
+                    />
+                    <SummaryFact
+                      label={t("updated")}
+                      value={
+                        product.price != null && product.priceUpdatedAt
+                          ? formatDate(product.priceUpdatedAt, locale)
+                          : catalog("unavailable")
+                      }
+                      missing={product.price == null || !product.priceUpdatedAt}
+                    />
+                  </dl>
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section className="rounded-xl border bg-card p-4">
             <h2 className="text-base font-semibold">{t("delivery")}</h2>
             {deliveryNotes.length ? (
-              <ul className="mt-3 space-y-2 text-sm leading-6">
-                {deliveryNotes.map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-3 space-y-2 text-sm leading-6">
+                  {deliveryNotes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-amber-950">{catalog("deliveryStated")}</p>
+              </>
             ) : (
               <p className="mt-3 text-sm text-muted-foreground">{catalog("deliveryUnavailable")}</p>
             )}
@@ -128,6 +190,9 @@ export async function SupplierProfile({
 
           <section className="rounded-xl border bg-card p-4">
             <h2 className="text-base font-semibold">{catalog("certifications")}</h2>
+            {supplier.dataType === "DEMO" && supplier.certifications.length ? (
+              <p className="mt-3 text-sm text-amber-950">{catalog("demoCerts")}</p>
+            ) : null}
             {supplier.certifications.length ? (
               <ul className="mt-3 space-y-3">
                 {supplier.certifications.map((item) => (
@@ -143,7 +208,13 @@ export async function SupplierProfile({
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.verificationNotes}</p>
                     ) : null}
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {item.documentUrl ? item.documentUrl : t("noDocument")}
+                      {item.documentUrl ? (
+                        <a href={item.documentUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                          {t("document")}
+                        </a>
+                      ) : (
+                        t("noDocument")
+                      )}
                     </p>
                   </li>
                 ))}
@@ -155,6 +226,7 @@ export async function SupplierProfile({
 
           <section className="rounded-xl border bg-card p-4">
             <h2 className="text-base font-semibold">{t("sources")}</h2>
+            {supplier.sources.length ? (
             <ul className="mt-3 space-y-3">
               {supplier.sources.map((source) => (
                 <li key={source.id} className="text-sm leading-6">
@@ -168,6 +240,9 @@ export async function SupplierProfile({
                 </li>
               ))}
             </ul>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">{catalog("unavailable")}</p>
+            )}
           </section>
         </div>
 
@@ -181,7 +256,9 @@ export async function SupplierProfile({
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">{t("address")}</dt>
-                <dd>{supplier.address ?? catalog("unavailable")}</dd>
+                <dd className={supplier.address ? undefined : "text-muted-foreground"}>
+                  {supplier.address ?? catalog("unavailable")}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">{catalog("verificationLabel")}</dt>
@@ -192,28 +269,20 @@ export async function SupplierProfile({
 
           <section className="rounded-xl border bg-card p-4">
             <h2 className="text-base font-semibold">{t("contacts")}</h2>
-            <ul className="mt-3 space-y-3 text-sm">
-              {supplier.contacts.map((contact) => (
-                <li key={contact.id}>
-                  <p className="text-xs text-muted-foreground">
-                    {contact.label ?? catalog(`contactType.${contact.type}`)}
-                  </p>
-                  {contact.type === "EMAIL" ? (
-                    <a className="hover:text-primary" href={`mailto:${contact.value}`}>
-                      {contact.value}
-                    </a>
-                  ) : contact.type === "PHONE" ? (
-                    <a className="hover:text-primary" href={`tel:${contact.value.replace(/[^\d+]/g, "")}`}>
-                      {contact.value}
-                    </a>
-                  ) : (
-                    <a className="hover:text-primary" href={contact.value} target="_blank" rel="noreferrer">
-                      {contact.value}
-                    </a>
-                  )}
-                </li>
-              ))}
-            </ul>
+            {supplier.contacts.length ? (
+              <ul className="mt-3 space-y-3 text-sm">
+                {supplier.contacts.map((contact) => (
+                  <li key={contact.id}>
+                    <p className="text-xs text-muted-foreground">
+                      {contact.label ?? catalog(`contactType.${contact.type}`)}
+                    </p>
+                    <ContactValue contact={contact} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">{catalog("unavailable")}</p>
+            )}
           </section>
 
           <section className="rounded-xl border bg-card p-4">
@@ -237,4 +306,49 @@ export async function SupplierProfile({
       </div>
     </div>
   );
+}
+
+function SummaryFact({
+  label,
+  value,
+  missing,
+  caution = false,
+}: {
+  label: string;
+  value: string;
+  missing: boolean;
+  caution?: boolean;
+}) {
+  const valueClass = missing ? "text-muted-foreground" : caution ? "text-amber-950" : "font-medium";
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={`mt-0.5 text-sm ${valueClass}`}>{value}</dd>
+    </div>
+  );
+}
+
+function ContactValue({ contact }: { contact: CatalogContact }) {
+  if (contact.type === "EMAIL") {
+    return (
+      <a className="hover:text-primary" href={`mailto:${contact.value}`}>
+        {contact.value}
+      </a>
+    );
+  }
+  if (contact.type === "PHONE") {
+    return (
+      <a className="hover:text-primary" href={`tel:${contact.value.replace(/[^\d+]/g, "")}`}>
+        {contact.value}
+      </a>
+    );
+  }
+  if (/^https?:\/\//.test(contact.value)) {
+    return (
+      <a className="hover:text-primary" href={contact.value} target="_blank" rel="noreferrer">
+        {contact.value}
+      </a>
+    );
+  }
+  return <span>{contact.value}</span>;
 }

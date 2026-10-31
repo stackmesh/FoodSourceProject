@@ -118,6 +118,7 @@ export function DiscoveryFilters({
           <Select name="sort" label={t("sort")} defaultValue={query.sort}>
             <option value="name">{t("sortName")}</option>
             <option value="relevance">{t("sortRelevance")}</option>
+            <option value="match">{t("sortMatch")}</option>
             <option value="price">{t("sortPrice")}</option>
             <option value="moq">{t("sortMoq")}</option>
           </Select>

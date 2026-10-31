@@ -1,4 +1,5 @@
 import { CertificationBadge, SupplierBadges } from "@/components/catalog/badges";
+import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
 import { SourceMenu } from "@/components/catalog/source-menu";
@@ -10,6 +11,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 import type { CatalogContact, CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
+import type { MatchReport } from "@/server/matching";
 import { getTranslations } from "next-intl/server";
 import {
   Apple,
@@ -41,12 +43,28 @@ export async function SupplierProfile({
   saved,
   comparing,
   workspace,
+  report,
+  listHref,
+  matchContext,
+  scoreBasis,
 }: {
   supplier: CatalogSupplier;
   locale: string;
   saved: boolean;
   comparing: boolean;
   workspace: WorkspaceEntry | null;
+  report: MatchReport | null;
+  listHref: string;
+  scoreBasis: "search" | "catalog";
+  matchContext?: {
+    query: string;
+    category: string;
+    city: string;
+    region: string;
+    maxPrice?: string;
+    maxMoq?: string;
+    certified?: boolean;
+  };
 }) {
   const t = await getTranslations("Profile");
   const catalog = await getTranslations("Catalog");
@@ -61,7 +79,7 @@ export async function SupplierProfile({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
-      <Link href="/suppliers" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link href={listHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-4" />
         {t("back")}
       </Link>
@@ -81,7 +99,7 @@ export async function SupplierProfile({
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <FavoriteButton supplierId={supplier.id} saved={saved} appearance="bookmark" />
-          <CompareButton slug={supplier.slug} active={comparing} showIcon />
+          <CompareButton slug={supplier.slug} active={comparing} showIcon context={matchContext} />
           {supplier.website ? (
             <a
               href={supplier.website}
@@ -149,6 +167,10 @@ export async function SupplierProfile({
           caution={deliveryNotes.length > 0}
         />
       </dl>
+
+      <div className="mt-4">
+        <MatchScore report={report} basis={scoreBasis} />
+      </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">

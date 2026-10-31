@@ -16,6 +16,12 @@ export type MatchContext = {
   category?: string;
   city?: string;
   region?: string;
+  /** Highest acceptable unit price. Values at or below it can be scored without a peer group. */
+  maxPrice?: number | null;
+  /** Highest acceptable minimum order. Values at or below it can be scored without a peer group. */
+  maxMoq?: number | null;
+  /** When true, an unverified certificate claim is a partial match. A verified certificate stays exact. */
+  certified?: boolean;
   weights?: Partial<MatchWeights>;
 };
 
@@ -84,12 +90,15 @@ export type MatchReason =
   | "location_unavailable"
   | "no_location_requested"
   | "lower_is_better"
+  | "within_limit"
+  | "above_limit"
   | "price_unavailable"
   | "moq_unavailable"
   | "different_unit"
   | "no_peer_value"
   | "verified"
   | "unverified_not_counted"
+  | "unverified_partial"
   | "expired_not_verified"
   | "no_certification_records"
   | "demonstration_not_evidence"
@@ -118,11 +127,19 @@ export type OfferComparison = {
   mixedUnits: boolean;
 };
 
+export type MatchGrade = "exact" | "partial" | "mismatch" | "unavailable" | "not_requested";
+
+export type MatchQuality = "strong" | "partial" | "weak" | "unavailable";
+
 export type MatchReport = {
   supplierId: string;
-  /** Null when no weighted factor could be scored. */
+  /**
+   * 0–100. Earned points divided by the weight of applicable criteria.
+   * Null when nothing applicable was scored.
+   * Missing facts stay in that denominator, so they do not raise the score.
+   */
   score: number | null;
-  /** Share of the configured weight that was actually scored, from 0 to 1. */
+  /** Share of applicable weight that was scored, from 0 to 1. */
   coverage: number;
   factors: MatchFactor[];
   price: OfferComparison;
@@ -174,16 +191,13 @@ export function matchSuppliers(
     const factors = [
       productFactor(supplier, context, sharedCategories, weights.product),
       geographyFactor(supplier, context, weights.geography),
-      numericFactor("price", supplier, priceGroup, weights.price, "price_unavailable"),
-      numericFactor("moq", supplier, moqGroup, weights.moq, "moq_unavailable"),
-      certificationFactor(supplier, weights.certification),
+      numericFactor("price", supplier, context, priceGroup, weights.price, "price_unavailable"),
+      numericFactor("moq", supplier, context, moqGroup, weights.moq, "moq_unavailable"),
+      certificationFactor(supplier, context, weights.certification),
       deliveryFactor(supplier, context, weights.delivery),
     ];
-    const active = factors.filter((factor) => factor.status === "scored" && factor.ratio != null && factor.weight > 0);
-    const weightSum = active.reduce((total, factor) => total + factor.weight, 0);
-    const score = weightSum === 0 ? null : Math.round((active.reduce((total, factor) => total + (factor.ratio ?? 0) * factor.weight, 0) / weightSum) * 100);
-    const withPoints = assignPoints(factors, score, weightSum);
-    return { supplier, factors: withPoints, score, coverage: weightSum };
+    const { score, coverage, factors: withPoints } = summarize(factors);
+    return { supplier, factors: withPoints, score, coverage };
   });
 
   return drafts.map(({ supplier, factors, score, coverage }) => {
@@ -270,7 +284,7 @@ function geographyFactor(supplier: MatchSupplier, context: MatchContext, weight:
   return factor("geography", weight, "not_requested", null, "no_location_requested");
 }
 
-function certificationFactor(supplier: MatchSupplier, weight: number): MatchFactor {
+function certificationFactor(supplier: MatchSupplier, context: MatchContext, weight: number): MatchFactor {
   if (supplier.dataType === "DEMO") {
     return factor("certification", weight, "missing", null, "demonstration_not_evidence");
   }
@@ -280,6 +294,9 @@ function certificationFactor(supplier: MatchSupplier, weight: number): MatchFact
     return factor("certification", weight, "missing", null, "no_certification_records");
   }
   const onlyExpired = supplier.certifications.every((item) => item.status === "EXPIRED");
+  if (!onlyExpired && context.certified) {
+    return factor("certification", weight, "scored", 0.45, "unverified_partial");
+  }
   return factor(
     "certification",
     weight,
@@ -312,20 +329,48 @@ type NumericGroup = { unit: string | null; currency: string | null; supplierIds:
 function numericFactor(
   key: "price" | "moq",
   supplier: MatchSupplier,
+  context: MatchContext,
   group: NumericGroup | null,
   weight: number,
   missingReason: "price_unavailable" | "moq_unavailable",
 ): MatchFactor {
   const offers = key === "price" ? pricedOffers(supplier) : moqOffers(supplier);
+  const ceiling = key === "price" ? context.maxPrice : context.maxMoq;
   if (!group) {
-    return factor(key, weight, offers.length ? "not_comparable" : "missing", null, offers.length ? "no_peer_value" : missingReason);
+    return unmatchedNumeric(key, weight, offers, ceiling, missingReason);
   }
   const own = offers.filter((offer) => offer.unit === group.unit && (key !== "price" || offer.currency === group.currency));
   if (own.length === 0) {
-    return factor(key, weight, offers.length ? "not_comparable" : "missing", null, offers.length ? "different_unit" : missingReason);
+    return unmatchedNumeric(key, weight, offers, ceiling, missingReason, true);
   }
   const amount = Math.min(...own.map((offer) => offer.amount));
+  const limit = limitScore(amount, ceiling);
+  if (limit?.reason === "above_limit") return factor(key, weight, "scored", 0, "above_limit");
   return factor(key, weight, "scored", lowerIsBetter(amount, group.min, group.max), "lower_is_better");
+}
+
+function unmatchedNumeric(
+  key: "price" | "moq",
+  weight: number,
+  offers: Array<{ unit: string | null; amount: number }>,
+  ceiling: number | null | undefined,
+  missingReason: "price_unavailable" | "moq_unavailable",
+  unitMismatch = false,
+): MatchFactor {
+  if (offers.length === 0) return factor(key, weight, "missing", null, missingReason);
+  const units = new Set(offers.map((offer) => offer.unit));
+  if (units.size !== 1 || unitMismatch) {
+    return factor(key, weight, "not_comparable", null, unitMismatch ? "different_unit" : "no_peer_value");
+  }
+  const limit = limitScore(Math.min(...offers.map((offer) => offer.amount)), ceiling);
+  if (!limit) return factor(key, weight, "not_comparable", null, "no_peer_value");
+  return factor(key, weight, "scored", limit.ratio, limit.reason);
+}
+
+function limitScore(amount: number, ceiling: number | null | undefined) {
+  if (ceiling == null || !Number.isFinite(ceiling) || ceiling <= 0 || !Number.isFinite(amount)) return null;
+  if (amount > ceiling) return { ratio: 0, reason: "above_limit" as const };
+  return { ratio: 0.5 + 0.5 * (1 - amount / ceiling), reason: "within_limit" as const };
 }
 
 function offerComparison(supplier: MatchSupplier, group: NumericGroup | null, key: "price" | "moq"): OfferComparison {
@@ -355,6 +400,19 @@ function offerComparison(supplier: MatchSupplier, group: NumericGroup | null, ke
     missing: display == null,
     mixedUnits: display != null,
   };
+}
+
+function summarize(factors: MatchFactor[]) {
+  const applicable = factors.filter((factor) => factor.status !== "not_requested" && factor.weight > 0);
+  const applicableWeight = applicable.reduce((total, factor) => total + factor.weight, 0);
+  const scored = applicable.filter((factor) => factor.status === "scored" && factor.ratio != null);
+  const earned = scored.reduce((total, factor) => total + (factor.ratio ?? 0) * factor.weight, 0);
+  if (applicableWeight === 0 || scored.length === 0) {
+    return { score: null, coverage: 0, factors: factors.map((item) => ({ ...item, points: null })) };
+  }
+  const score = Math.round((earned / applicableWeight) * 100);
+  const coverage = scored.reduce((total, factor) => total + factor.weight, 0) / applicableWeight;
+  return { score, coverage, factors: assignPoints(factors, score, applicableWeight) };
 }
 
 function assignPoints(factors: MatchFactor[], score: number | null, weightSum: number) {
@@ -391,14 +449,14 @@ export function cohortFromProductRows(
   return {
     prices: groupsFromOffers(
       rows.flatMap((row) =>
-        row.price == null
+        row.price == null || !Number.isFinite(row.price) || row.price < 0
           ? []
           : [{ supplierId: row.supplierId, unit: normalizeUnit(row.unit), currency: row.currency || "RUB", amount: row.price }],
       ),
     ),
     moqs: groupsFromOffers(
       rows.flatMap((row) =>
-        row.moq == null
+        row.moq == null || !Number.isFinite(row.moq) || row.moq < 0
           ? []
           : [{ supplierId: row.supplierId, unit: normalizeUnit(row.unit), currency: null, amount: row.moq }],
       ),
@@ -482,14 +540,20 @@ function groupsFromOffers(offers: Array<{ supplierId: string; unit: string | nul
 
 function pricedOffers(supplier: MatchSupplier) {
   return supplier.products.flatMap((product) =>
-    product.price == null ? [] : [{ unit: normalizeUnit(product.unit), currency: product.currency || "RUB", amount: product.price }],
+    usableAmount(product.price)
+      ? [{ unit: normalizeUnit(product.unit), currency: product.currency || "RUB", amount: product.price }]
+      : [],
   );
 }
 
 function moqOffers(supplier: MatchSupplier) {
   return supplier.products.flatMap((product) =>
-    product.moq == null ? [] : [{ unit: normalizeUnit(product.unit), currency: null, amount: product.moq }],
+    usableAmount(product.moq) ? [{ unit: normalizeUnit(product.unit), currency: null, amount: product.moq }] : [],
   );
+}
+
+function usableAmount(value: number | null): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function sharedCategorySlugs(suppliers: MatchSupplier[]) {
@@ -537,6 +601,28 @@ export const unitAliases: Record<string, string> = {
 
 export function normalizeComparableUnit(unit: string | null) {
   return normalizeUnit(unit);
+}
+
+export function factorGrade(factor: MatchFactor): MatchGrade {
+  if (factor.status === "not_requested") return "not_requested";
+  if (factor.status !== "scored" || factor.ratio == null) return "unavailable";
+  if (factor.ratio >= 1) return "exact";
+  if (factor.ratio <= 0) return "mismatch";
+  return "partial";
+}
+
+export function matchQuality(report: Pick<MatchReport, "score" | "coverage">): MatchQuality {
+  if (report.score == null) return "unavailable";
+  if (report.score >= 75 && report.coverage >= 0.6) return "strong";
+  if (report.score >= 45) return "partial";
+  return "weak";
+}
+
+export function leadingReason(report: MatchReport): MatchReason | null {
+  const scored = report.factors.filter((factor) => factor.status === "scored" && factor.ratio != null && factor.weight > 0);
+  if (scored.length === 0) return null;
+  scored.sort((left, right) => (right.ratio ?? 0) - (left.ratio ?? 0) || right.weight - left.weight);
+  return scored[0]?.reason ?? null;
 }
 
 function normalizeUnit(unit: string | null) {

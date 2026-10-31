@@ -6,7 +6,8 @@ import { ErrorState, PanelSkeleton } from "@/components/catalog/chrome";
 import { SupplierProfile } from "@/components/catalog/supplier-profile";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
-import { getSupplier, getWorkspace } from "@/server/catalog";
+import { hasRankingContext, parseDiscoveryQuery, toSearchParams } from "@/lib/discovery-query";
+import { getSupplier, getWorkspace, scoreSupplier } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
 export async function generateMetadata({
@@ -24,26 +25,30 @@ export async function generateMetadata({
 
 export default function SupplierDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   return (
     <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8"><PanelSkeleton /></div>}>
-      <Detail params={params} />
+      <Detail params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
 async function Detail({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale: localeParam, slug } = await params;
   const locale = assertLocale(localeParam);
   setRequestLocale(locale);
   const t = await getTranslations("Profile");
-  const loaded = await loadDetail(slug);
+  const loaded = await loadDetail(slug, await searchParams);
 
   if (!loaded) {
     return (
@@ -68,21 +73,41 @@ async function Detail({
       saved={entry != null}
       comparing={loaded.comparing}
       workspace={entry}
+      report={loaded.report}
+      listHref={loaded.listHref}
+      matchContext={loaded.matchContext}
+      scoreBasis={loaded.scoreBasis}
     />
   );
 }
 
-async function loadDetail(slug: string) {
+async function loadDetail(slug: string, rawQuery: Record<string, string | string[] | undefined>) {
   try {
-    const [supplier, workspace, jar] = await Promise.all([
-      getSupplier(slug),
-      getWorkspace(),
-      cookies(),
-    ]);
+    const jar = await cookies();
+    const query = parseDiscoveryQuery(rawQuery);
+    const ranked = hasRankingContext(query);
+    const scoreBasis = ranked ? ("search" as const) : ("catalog" as const);
+    const [supplier, workspace] = await Promise.all([getSupplier(slug), getWorkspace()]);
+    const report = supplier ? await scoreSupplier(supplier, query) : null;
+    const search = toSearchParams(query).toString();
 
     return {
       supplier,
       workspace,
+      report,
+      scoreBasis,
+      listHref: search ? `/suppliers?${search}` : "/suppliers",
+      matchContext: ranked
+        ? {
+            query: query.q,
+            category: query.category,
+            city: query.city,
+            region: query.region,
+            maxPrice: query.maxPrice == null ? "" : String(query.maxPrice),
+            maxMoq: query.maxMoq == null ? "" : String(query.maxMoq),
+            certified: query.certified,
+          }
+        : undefined,
       comparing: supplier
         ? parseCompareSlugs(jar.get(compareCookieName)?.value).includes(supplier.slug)
         : false,
@@ -92,3 +117,4 @@ async function loadDetail(slug: string) {
     return null;
   }
 }
+

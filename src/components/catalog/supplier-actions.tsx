@@ -155,7 +155,15 @@ export function CompareButton({
 }: {
   slug: string;
   active: boolean;
-  context?: { query: string; category: string; city: string; region: string };
+  context?: {
+    query: string;
+    category: string;
+    city: string;
+    region: string;
+    maxPrice?: string;
+    maxMoq?: string;
+    certified?: boolean;
+  };
   className?: string;
   showIcon?: boolean;
 }) {
@@ -184,6 +192,9 @@ export function CompareButton({
           <input type="hidden" name="category" value={context.category} />
           <input type="hidden" name="city" value={context.city} />
           <input type="hidden" name="region" value={context.region} />
+          <input type="hidden" name="maxPrice" value={context.maxPrice ?? ""} />
+          <input type="hidden" name="maxMoq" value={context.maxMoq ?? ""} />
+          {context.certified ? <input type="hidden" name="certified" value="1" /> : null}
         </>
       ) : null}
       <Button type="submit" size="sm" className={className} disabled={pending}>

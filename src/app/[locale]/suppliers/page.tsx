@@ -9,6 +9,7 @@ import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
 import { parseDiscoveryQuery, toSearchParams } from "@/lib/discovery-query";
+import { defaultMatchWeights } from "@/server/matching";
 import { getSavedIds, searchSuppliers } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
@@ -73,7 +74,16 @@ async function DiscoveryResults({
             {t("results", { count: result.total })}
           </p>
           {result.showScore ? (
-            <p className="max-w-xl text-xs leading-5 text-primary">{t("scoreNote")}</p>
+            <p className="max-w-xl text-xs leading-5 text-primary">
+              {t("scoreNote", {
+                product: Math.round(defaultMatchWeights.product * 100),
+                geography: Math.round(defaultMatchWeights.geography * 100),
+                price: Math.round(defaultMatchWeights.price * 100),
+                moq: Math.round(defaultMatchWeights.moq * 100),
+                certification: Math.round(defaultMatchWeights.certification * 100),
+                delivery: Math.round(defaultMatchWeights.delivery * 100),
+              })}
+            </p>
           ) : null}
         </div>
         {result.items.length === 0 ? (
@@ -85,20 +95,24 @@ async function DiscoveryResults({
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {result.items.map(({ supplier, score }) => (
+            {result.items.map(({ supplier, report }) => (
               <SupplierCard
                 key={supplier.id}
                 supplier={supplier}
                 locale={locale}
                 saved={savedIds.has(supplier.id)}
                 comparing={comparing.has(supplier.slug)}
-                score={score}
                 showScore={result.showScore}
+                report={report}
+                profileHref={profileHref(supplier.slug, query)}
                 context={{
                   query: query.q,
                   category: query.category,
                   city: query.city,
                   region: query.region,
+                  maxPrice: query.maxPrice == null ? "" : String(query.maxPrice),
+                  maxMoq: query.maxMoq == null ? "" : String(query.maxMoq),
+                  certified: query.certified,
                 }}
               />
             ))}
@@ -126,6 +140,13 @@ async function loadDiscovery(query: ReturnType<typeof parseDiscoveryQuery>) {
     if (!(error instanceof DataError)) throw error;
     return null;
   }
+}
+
+function profileHref(slug: string, query: ReturnType<typeof parseDiscoveryQuery>) {
+  const params = toSearchParams(query, 1);
+  params.delete("page");
+  const search = params.toString();
+  return search ? `/suppliers/${slug}?${search}` : `/suppliers/${slug}`;
 }
 
 function Pagination({

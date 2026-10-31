@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import pg from "pg";
 import { createSupplier, deleteSupplier, updateSupplier } from "../src/server/supplier-records.ts";
-import { searchSuppliers } from "../src/server/catalog.ts";
+import { getSupplier, scoreSupplier, searchSuppliers } from "../src/server/catalog.ts";
 import { parseDiscoveryQuery } from "../src/lib/discovery-query.ts";
 import { cohortFromProductRows, normalizeComparableUnit } from "../src/server/matching.ts";
 
@@ -157,6 +157,63 @@ check(
   "page 2 differs from page 1",
   page2.items.length === 9 &&
     page2.items.every((item) => !page1.items.some((first) => first.supplier.slug === item.supplier.slug)),
+);
+
+const dairyName = await searchSuppliers(parseDiscoveryQuery({ category: "dairy" }));
+const dairyMatch = await searchSuppliers(parseDiscoveryQuery({ category: "dairy", sort: "match" }));
+check("category filter total is unchanged by match sort", dairyName.total === dairyMatch.total && dairyMatch.total > 0);
+check(
+  "match sort is descending",
+  dairyMatch.items.every((item, index, items) => {
+    if (index === 0) return true;
+    const previous = items[index - 1]?.score;
+    if (previous == null) return item.score == null;
+    if (item.score == null) return true;
+    return item.score <= previous;
+  }),
+);
+check(
+  "match rows include a six-part breakdown",
+  dairyMatch.items.every((item) => item.report?.factors?.length === 6),
+);
+const listedTop = (await searchSuppliers(parseDiscoveryQuery({ sort: "match" }))).items[0];
+const listedSupplier = await getSupplier(listedTop.supplier.slug);
+const profileScore = await scoreSupplier(listedSupplier, parseDiscoveryQuery({}));
+const profileFromSort = await scoreSupplier(listedSupplier, parseDiscoveryQuery({ sort: "match" }));
+check(
+  "profile uses the same catalog score as match sort",
+  profileScore?.score != null &&
+    profileScore.score === listedTop.score &&
+    profileFromSort?.score === listedTop.score,
+);
+const ekoSupplier = await getSupplier("ekoniva");
+const ekoProfile = await scoreSupplier(ekoSupplier, parseDiscoveryQuery({ category: "dairy" }));
+const eko = dairyMatch.items.find((item) => item.supplier.slug === "ekoniva");
+check("profile keeps the filtered dairy score", ekoProfile?.score === eko?.score && ekoProfile?.score != null);
+check(
+  "missing prices do not become a perfect score",
+  Boolean(eko) &&
+    eko.score != null &&
+    eko.score < 100 &&
+    eko.report.factors.find((factor) => factor.key === "price")?.status === "missing",
+);
+const matchedPage1 = await searchSuppliers(parseDiscoveryQuery({ sort: "match", page: "1" }));
+const matchedPage2 = await searchSuppliers(parseDiscoveryQuery({ sort: "match", page: "2" }));
+check(
+  "match sort pages do not repeat suppliers",
+  matchedPage2.items.length > 0 &&
+    matchedPage2.items.every((item) => !matchedPage1.items.some((first) => first.supplier.id === item.supplier.id)),
+);
+const boundaryScores = [...matchedPage1.items.map((item) => item.score), matchedPage2.items[0]?.score];
+check(
+  "match sort stays descending across pages",
+  boundaryScores.every((score, index) => {
+    if (index === 0) return true;
+    const previous = boundaryScores[index - 1];
+    if (previous == null) return score == null;
+    if (score == null) return true;
+    return score <= previous;
+  }),
 );
 
 const created = await createSupplier({

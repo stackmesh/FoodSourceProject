@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import {
   cohortFromProductRows,
   defaultMatchWeights,
+  factorGrade,
+  leadingReason,
+  matchQuality,
   matchSuppliers,
   resolveMatchWeights,
   type MatchSupplier,
@@ -205,10 +208,17 @@ assert.equal(certReports[0].factors.find((factor) => factor.key === "certificati
 assert.equal(certReports[0].verifiedCertifications, 0);
 assert.equal(certReports[1].factors.find((factor) => factor.key === "certification")?.status, "missing");
 assert.equal(certReports[1].factors.find((factor) => factor.key === "certification")?.points, null);
+assert.equal(factorGrade(certReports[1].factors.find((factor) => factor.key === "certification")!), "unavailable");
+assert.equal(factorGrade(certReports[0].factors.find((factor) => factor.key === "certification")!), "mismatch");
 assert.equal(certReports[2].factors.find((factor) => factor.key === "certification")?.reason, "verified");
 assert.equal(certReports[2].countsAsVerifiedSupplier, true);
 assert.equal(certReports[3].factors.find((factor) => factor.key === "certification")?.reason, "expired_not_verified");
-assert.ok((certReports[1].score ?? 0) > (certReports[0].score ?? 0));
+assert.equal(certReports[1].score, certReports[0].score);
+assert.ok((certReports[2].score ?? 0) > (certReports[0].score ?? 0));
+
+const [preferredCert] = matchSuppliers([knownUnverified], { category: "grocery", certified: true });
+assert.equal(preferredCert.factors.find((factor) => factor.key === "certification")?.reason, "unverified_partial");
+assert.equal(factorGrade(preferredCert.factors.find((factor) => factor.key === "certification")!), "partial");
 
 const stated = supplier({
   id: "stated",
@@ -257,8 +267,72 @@ const [missingOnly] = matchSuppliers([
     products: [product({ name: "Без чисел", categorySlug: "grocery" })],
   }),
 ], { category: "grocery" });
-assert.equal(missingOnly.score, 100);
-assert.equal(Number(missingOnly.coverage.toFixed(2)), 0.35);
+assert.equal(missingOnly.score, 47);
+assert.equal(Number(missingOnly.coverage.toFixed(2)), 0.47);
+assert.notEqual(missingOnly.score, 100);
+assert.equal(matchQuality(missingOnly), "partial");
+assert.equal(leadingReason(missingOnly), "category_match");
+assert.equal(factorGrade(missingOnly.factors.find((factor) => factor.key === "product")!), "exact");
+assert.equal(factorGrade(missingOnly.factors.find((factor) => factor.key === "price")!), "unavailable");
 assert.ok(missingOnly.factors.filter((factor) => factor.key !== "product").every((factor) => factor.points == null));
+
+const conflict = matchSuppliers(
+  [
+    supplier({
+      id: "fit",
+      name: "Совпадает",
+      city: "Казань",
+      region: "Республика Татарстан",
+      products: [product({ name: "Молоко", categorySlug: "dairy", price: 80, moq: 10, unit: "кг" })],
+      certifications: [{ status: "VERIFIED" }],
+    }),
+    supplier({
+      id: "split",
+      name: "Частично",
+      city: "Москва",
+      products: [product({ name: "Кефир", categorySlug: "dairy", price: 120, moq: 40, unit: "kg" })],
+    }),
+  ],
+  { category: "dairy", city: "Казань" },
+);
+assert.equal(factorGrade(conflict[0].factors.find((factor) => factor.key === "product")!), "exact");
+assert.equal(factorGrade(conflict[0].factors.find((factor) => factor.key === "geography")!), "exact");
+assert.equal(conflict[1].factors.find((factor) => factor.key === "product")?.reason, "category_match");
+assert.equal(conflict[1].factors.find((factor) => factor.key === "geography")?.reason, "location_miss");
+assert.equal(factorGrade(conflict[1].factors.find((factor) => factor.key === "geography")!), "mismatch");
+assert.ok((conflict[0].score ?? 0) > (conflict[1].score ?? 0));
+assert.ok((conflict[0].score ?? 100) < 100);
+
+const invalidPrice = supplier({
+  id: "invalid",
+  name: "Неверная цена",
+  products: [product({ name: "Рис", price: -5, moq: Number.NaN, unit: "кг" })],
+});
+const [invalid] = matchSuppliers([invalidPrice, pricedKg], { maxPrice: 100, maxMoq: 80 });
+assert.equal(invalid.factors.find((factor) => factor.key === "price")?.status, "missing");
+assert.equal(invalid.factors.find((factor) => factor.key === "moq")?.status, "missing");
+assert.notEqual(invalid.factors.find((factor) => factor.key === "price")?.reason, "lower_is_better");
+
+const [underCeiling] = matchSuppliers(
+  [supplier({ id: "under", name: "В пределе", products: [product({ name: "Рис", price: 40, moq: 10, unit: "кг" })] })],
+  { maxPrice: 80, maxMoq: 20 },
+);
+assert.equal(underCeiling.factors.find((factor) => factor.key === "price")?.reason, "within_limit");
+assert.equal(factorGrade(underCeiling.factors.find((factor) => factor.key === "price")!), "partial");
+assert.equal(underCeiling.factors.find((factor) => factor.key === "moq")?.reason, "within_limit");
+
+const [overCeiling] = matchSuppliers(
+  [supplier({ id: "over", name: "Выше предела", products: [product({ name: "Рис", price: 90, unit: "кг" })] })],
+  { maxPrice: 80 },
+);
+assert.equal(overCeiling.factors.find((factor) => factor.key === "price")?.reason, "above_limit");
+assert.equal(overCeiling.factors.find((factor) => factor.key === "price")?.ratio, 0);
+
+const dirtyCohort = cohortFromProductRows([
+  { supplierId: "a", unit: "кг", currency: "RUB", price: -1, moq: Number.POSITIVE_INFINITY },
+  { supplierId: "b", unit: "kg", currency: "RUB", price: 10, moq: 2 },
+]);
+assert.equal(dirtyCohort.prices?.length, 1);
+assert.equal(dirtyCohort.moqs?.length, 1);
 
 console.log("matching checks passed");

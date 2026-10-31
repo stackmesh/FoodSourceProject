@@ -5,8 +5,8 @@ import {
   type DiscoveryQuery,
 } from "@/lib/discovery-query";
 import { getPrisma } from "@/lib/prisma";
-import { matchSuppliers } from "@/server/matching";
-import { queryMatchCohort, querySupplierPage } from "@/server/supplier-search";
+import { matchSuppliers, type MatchContext, type MatchReport } from "@/server/matching";
+import { discoveryPageSize, queryMatchCohort, querySupplierIds, querySupplierPage } from "@/server/supplier-search";
 import {
   DataError,
   type CatalogSupplier,
@@ -172,45 +172,114 @@ export async function getSuppliersBySlugs(slugs: string[]) {
 
 export async function searchSuppliers(query: DiscoveryQuery) {
   try {
-    const [page, cohort] = await Promise.all([querySupplierPage(query), queryMatchCohort(query)]);
-    const rows = page.ids.length
-      ? await getPrisma().supplier.findMany({
-          where: { id: { in: page.ids } },
-          include: supplierInclude,
-        })
-      : [];
-    const byId = new Map(
-      rows.map((row) => [row.id, mapSupplier(row as Parameters<typeof mapSupplier>[0])]),
-    );
-    const suppliers = page.ids.flatMap((id) => {
-      const supplier = byId.get(id);
-      return supplier ? [supplier] : [];
-    });
-    const scores = new Map(
-      matchSuppliers(suppliers, {
-        query: query.q,
-        category: query.category,
-        city: query.city,
-        region: query.region,
-      }, cohort).map((report) => [report.supplierId, report.score]),
-    );
     const facets = await loadFacets();
+    const showScore = hasRankingContext(query) || query.sort === "match";
 
+    if (query.sort === "match" || showScore) {
+      const [ids, cohort] = await Promise.all([querySupplierIds(query), queryMatchCohort(query)]);
+      const population = await loadSuppliersByIds(ids);
+      const reports = new Map(
+        matchSuppliers(population, toMatchContext(query), cohort).map((report) => [report.supplierId, report]),
+      );
+
+      if (query.sort === "match") {
+        const ranked = [...population].sort((left, right) => compareByMatch(left, right, reports));
+        const pages = Math.max(1, Math.ceil(ranked.length / discoveryPageSize));
+        const page = Math.min(query.page, pages);
+        const start = (page - 1) * discoveryPageSize;
+        return {
+          items: ranked.slice(start, start + discoveryPageSize).map((supplier) => scoredItem(supplier, reports)),
+          total: ranked.length,
+          page,
+          pages,
+          showScore: true,
+          facets,
+        };
+      }
+
+      const page = await querySupplierPage(query);
+      const byId = new Map(population.map((supplier) => [supplier.id, supplier]));
+      return {
+        items: page.ids.flatMap((id) => {
+          const supplier = byId.get(id);
+          return supplier ? [scoredItem(supplier, reports)] : [];
+        }),
+        total: page.total,
+        page: page.page,
+        pages: page.pages,
+        showScore: true,
+        facets,
+      };
+    }
+
+    const page = await querySupplierPage(query);
+    const suppliers = await loadSuppliersByIds(page.ids);
     return {
-      items: suppliers.map((supplier) => ({
-        supplier,
-        score: scores.get(supplier.id) ?? null,
-      })),
+      items: suppliers.map((supplier) => ({ supplier, score: null, report: null as MatchReport | null })),
       total: page.total,
       page: page.page,
       pages: page.pages,
-      showScore: hasRankingContext(query) || query.sort === "relevance",
+      showScore: false,
       facets,
     };
   } catch (error) {
     console.error(error);
     throw new DataError();
   }
+}
+
+export async function scoreSupplier(supplier: CatalogSupplier, query: DiscoveryQuery) {
+  const [ids, cohort] = await Promise.all([querySupplierIds(query), queryMatchCohort(query)]);
+  const peers = await loadSuppliersByIds(ids);
+  const population = peers.some((item) => item.id === supplier.id) ? peers : [...peers, supplier];
+  return (
+    matchSuppliers(population, toMatchContext(query), cohort).find((report) => report.supplierId === supplier.id) ??
+    null
+  );
+}
+
+function toMatchContext(query: DiscoveryQuery): MatchContext {
+  return {
+    query: query.q || undefined,
+    category: query.category || undefined,
+    city: query.city || undefined,
+    region: query.region || undefined,
+    maxPrice: query.maxPrice,
+    maxMoq: query.maxMoq,
+    certified: query.certified,
+  };
+}
+
+function scoredItem(supplier: CatalogSupplier, reports: Map<string, MatchReport>) {
+  const report = reports.get(supplier.id) ?? null;
+  return { supplier, score: report?.score ?? null, report };
+}
+
+function compareByMatch(left: CatalogSupplier, right: CatalogSupplier, reports: Map<string, MatchReport>) {
+  const leftReport = reports.get(left.id);
+  const rightReport = reports.get(right.id);
+  const leftScore = leftReport?.score ?? null;
+  const rightScore = rightReport?.score ?? null;
+  if (leftScore == null && rightScore == null) return left.name.localeCompare(right.name, "ru");
+  if (leftScore == null) return 1;
+  if (rightScore == null) return -1;
+  if (leftScore !== rightScore) return rightScore - leftScore;
+  const coverageGap = (rightReport?.coverage ?? 0) - (leftReport?.coverage ?? 0);
+  if (coverageGap !== 0) return coverageGap;
+  return left.name.localeCompare(right.name, "ru");
+}
+
+async function loadSuppliersByIds(ids: string[]) {
+  if (!ids.length) return [];
+  const rows = await getPrisma().supplier.findMany({
+    where: { id: { in: ids }, isActive: true },
+    include: supplierInclude,
+  });
+  const byId = new Map(rows.map((row) => [row.id, mapSupplier(row as Parameters<typeof mapSupplier>[0])]));
+  return ids.flatMap((id) => {
+    const supplier = byId.get(id);
+    return supplier ? [supplier] : [];
+  });
 }
 
 export async function getDashboard() {

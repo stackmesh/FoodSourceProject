@@ -9,11 +9,14 @@ export type StoredMatchContext = {
   category: string;
   city: string;
   region: string;
+  maxPrice: number | null;
+  maxMoq: number | null;
+  certified: boolean;
 };
 
 export function parseMatchContext(value: string | undefined): StoredMatchContext {
-  const empty = { query: "", category: "", city: "", region: "" };
-  if (!value || value.length > 800) return empty;
+  const empty = { query: "", category: "", city: "", region: "", maxPrice: null, maxMoq: null, certified: false };
+  if (!value || value.length > 1200) return empty;
   try {
     const parsed = JSON.parse(value) as Partial<StoredMatchContext>;
     const category = typeof parsed.category === "string" ? parsed.category : "";
@@ -22,10 +25,19 @@ export function parseMatchContext(value: string | undefined): StoredMatchContext
       category: /^[a-z0-9-]*$/.test(category) ? category.slice(0, 80) : "",
       city: clip(parsed.city, 120),
       region: clip(parsed.region, 160),
+      maxPrice: finiteCeiling(parsed.maxPrice),
+      maxMoq: finiteCeiling(parsed.maxMoq),
+      certified: parsed.certified === true,
     };
   } catch {
     return empty;
   }
+}
+
+function finiteCeiling(value: unknown) {
+  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(number) || number < 0) return null;
+  return number;
 }
 
 function clip(value: unknown, max: number) {

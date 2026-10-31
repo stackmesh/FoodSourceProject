@@ -63,6 +63,9 @@ async function rememberMatchContext(formData: FormData) {
       category: String(formData.get("category") ?? ""),
       city: String(formData.get("city") ?? ""),
       region: String(formData.get("region") ?? ""),
+      maxPrice: String(formData.get("maxPrice") ?? ""),
+      maxMoq: String(formData.get("maxMoq") ?? ""),
+      certified: formData.get("certified") === "1",
     }),
   );
   const jar = await cookies();

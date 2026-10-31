@@ -105,14 +105,7 @@ export async function CompareView({
                 <th className="px-4 py-3 text-left align-top font-medium text-muted-foreground">{row.label}</th>
                 {row.cells.map((cell, index) => (
                   <td key={`${row.key}-${suppliers[index]?.id}`} className="px-4 py-3 align-top">
-                    {row.key === "score" ? (
-                      <ScoreFigure
-                        score={byId.get(suppliers[index]?.id ?? "")?.score ?? null}
-                        barClass={(columnTones[index] ?? columnTones[0]).bar}
-                        numberClass={(columnTones[index] ?? columnTones[0]).score}
-                        unavailable={catalog("scoreUnavailable")}
-                      />
-                    ) : row.key === "verification" ? (
+                    {row.key === "verification" ? (
                       <VerificationCell supplier={suppliers[index]} label={cell.text} />
                     ) : (
                       <CellBody cell={cell} />
@@ -236,19 +229,6 @@ function buildRows(
   };
 
   return [
-    {
-      key: "score",
-      label: t("score"),
-      cells: suppliers.map((supplier) => {
-        const report = byId.get(supplier.id);
-        return {
-          text: report?.score == null ? catalog("scoreUnavailable") : catalog("score", { score: report.score }),
-          best: false,
-          note: report ? t("coverage", { percent: Math.round(report.coverage * 100) }) : undefined,
-          noteTone: "neutral",
-        };
-      }),
-    },
     {
       key: "products",
       label: t("products"),

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const sorts = ["relevance", "price", "moq", "name"] as const;
+const sorts = ["relevance", "match", "price", "moq", "name"] as const;
 const scopes = ["all", "name", "product", "place"] as const;
 const supplierTypes = [
   "MANUFACTURER",
@@ -125,5 +125,13 @@ export function toSearchParams(query: DiscoveryQuery, page = query.page) {
 }
 
 export function hasRankingContext(query: DiscoveryQuery) {
-  return Boolean(query.q || query.category || query.city || query.region);
+  return Boolean(
+    query.q ||
+      query.category ||
+      query.city ||
+      query.region ||
+      query.certified ||
+      query.maxPrice != null ||
+      query.maxMoq != null,
+  );
 }

@@ -1,1 +1,8 @@
-export { defaultMatchWeights as scoreWeights, matchSuppliers, resolveMatchWeights } from "@/server/matching";
+export {
+  defaultMatchWeights as scoreWeights,
+  factorGrade,
+  leadingReason,
+  matchQuality,
+  matchSuppliers,
+  resolveMatchWeights,
+} from "@/server/matching";

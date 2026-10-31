@@ -1,9 +1,11 @@
 import { CertificateStatus, SupplierBadges } from "@/components/catalog/badges";
+import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
 import { supplierCertificateMark } from "@/lib/certificate-mark";
 import { Link } from "@/i18n/navigation";
 import type { CatalogSupplier } from "@/server/catalog-types";
+import type { MatchReport } from "@/server/matching";
 import { getTranslations } from "next-intl/server";
 import { Award, Coins, FileText, MapPin, Package, Truck, type LucideIcon } from "lucide-react";
 
@@ -12,17 +14,27 @@ export async function SupplierCard({
   locale,
   saved,
   comparing,
-  score,
   showScore,
+  report,
   context,
+  profileHref,
 }: {
   supplier: CatalogSupplier;
   locale: string;
   saved: boolean;
   comparing: boolean;
-  score: number | null;
   showScore: boolean;
-  context?: { query: string; category: string; city: string; region: string };
+  report: MatchReport | null;
+  context?: {
+    query: string;
+    category: string;
+    city: string;
+    region: string;
+    maxPrice?: string;
+    maxMoq?: string;
+    certified?: boolean;
+  };
+  profileHref: string;
 }) {
   const t = await getTranslations("Catalog");
   const categoryLabel = locale === "en" ? "categoryNameEn" : "categoryNameRu";
@@ -38,7 +50,7 @@ export async function SupplierCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-semibold tracking-tight">
-            <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
+            <Link href={profileHref} className="hover:text-primary">
               {supplier.name}
             </Link>
           </h2>
@@ -88,13 +100,13 @@ export async function SupplierCard({
         )}
       </div>
       {showScore ? (
-        <p className="mt-3 text-sm font-medium text-primary" title={t("scoreHint")}>
-          {score == null ? t("scoreUnavailable") : t("score", { score })}
-        </p>
+        <div className="mt-3" title={t("scoreHint")}>
+          <MatchScore report={report} />
+        </div>
       ) : null}
       <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
         <Link
-          href={`/suppliers/${supplier.slug}`}
+          href={profileHref}
           className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2 text-sm font-medium hover:bg-accent"
         >
           <FileText className="size-4" />

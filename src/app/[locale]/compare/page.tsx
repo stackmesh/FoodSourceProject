@@ -80,6 +80,9 @@ async function loadComparison() {
         category: stored.category || undefined,
         city: stored.city || undefined,
         region: stored.region || undefined,
+        maxPrice: stored.maxPrice,
+        maxMoq: stored.maxMoq,
+        certified: stored.certified,
       },
     };
   } catch (error) {

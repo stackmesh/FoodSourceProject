@@ -166,6 +166,18 @@ export async function querySupplierPage(query: DiscoveryQuery) {
   };
 }
 
+export async function querySupplierIds(query: DiscoveryQuery) {
+  const like = `%${foldSearchText(query.q)}%`;
+  const where = whereSql(query, like);
+  const rows = await getPrisma().$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT s."id"
+    FROM "Supplier" s
+    WHERE ${where}
+    ORDER BY s."name" ASC
+  `);
+  return rows.map((row) => row.id);
+}
+
 export async function queryMatchCohort(query: DiscoveryQuery) {
   const like = `%${foldSearchText(query.q)}%`;
   const where = whereSql(query, like);

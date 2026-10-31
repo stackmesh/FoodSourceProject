@@ -1,7 +1,7 @@
 import { CertificateStatus } from "@/components/catalog/badges";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
 import { supplierCertificateMark, type CertificateMark } from "@/lib/certificate-mark";
-import { ContactStatusForm, DeleteNoteButton, NoteEditor } from "@/components/catalog/workspace-forms";
+import { ContactStatusForm, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { compareLimit } from "@/lib/comparison";
@@ -630,10 +630,7 @@ function DecisionList({
                 <div className="space-y-3">
                   <ContactStatusForm supplierId={supplier.id} status={entry.contactStatus} />
                   {entry.notes.map((note) => (
-                    <div key={note.id} className="space-y-1">
-                      <NoteEditor supplierId={supplier.id} note={note} />
-                      <DeleteNoteButton noteId={note.id} />
-                    </div>
+                    <NoteEditor key={note.id} supplierId={supplier.id} note={note} />
                   ))}
                   <NoteEditor supplierId={supplier.id} />
                 </div>

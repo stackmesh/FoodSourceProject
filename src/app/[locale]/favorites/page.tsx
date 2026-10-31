@@ -3,11 +3,7 @@ import { Suspense } from "react";
 import { EmptyState, ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
 import { SupplierBadges } from "@/components/catalog/badges";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
-import {
-  ContactStatusForm,
-  DeleteNoteButton,
-  NoteEditor,
-} from "@/components/catalog/workspace-forms";
+import { ContactStatusForm, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
 import { formatMoney } from "@/lib/format";
@@ -92,10 +88,7 @@ async function FavoriteList({ locale }: { locale: string }) {
               <div className="space-y-3">
                 <h3 className="text-sm font-medium">{t("notes")}</h3>
                 {entry.notes.map((note) => (
-                  <div key={note.id}>
-                    <NoteEditor supplierId={supplier.id} note={note} />
-                    <DeleteNoteButton noteId={note.id} />
-                  </div>
+                  <NoteEditor key={note.id} supplierId={supplier.id} note={note} />
                 ))}
                 <NoteEditor supplierId={supplier.id} />
               </div>

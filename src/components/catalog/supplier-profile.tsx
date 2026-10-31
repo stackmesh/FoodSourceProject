@@ -5,7 +5,6 @@ import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-fac
 import { SourceMenu } from "@/components/catalog/source-menu";
 import {
   ContactStatusForm,
-  DeleteNoteButton,
   NoteEditor,
 } from "@/components/catalog/workspace-forms";
 import { Link } from "@/i18n/navigation";
@@ -397,10 +396,7 @@ export async function SupplierProfile({
               <div className="mt-3 space-y-4">
                 <ContactStatusForm supplierId={supplier.id} status={workspace.contactStatus} />
                 {workspace.notes.map((note) => (
-                  <div key={note.id} className="space-y-1">
-                    <NoteEditor supplierId={supplier.id} note={note} />
-                    <DeleteNoteButton noteId={note.id} />
-                  </div>
+                  <NoteEditor key={note.id} supplierId={supplier.id} note={note} />
                 ))}
                 <NoteEditor supplierId={supplier.id} />
               </div>

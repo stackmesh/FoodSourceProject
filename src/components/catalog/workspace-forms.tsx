@@ -76,6 +76,7 @@ export function NoteEditor({
   const [state, action] = useActionState(saveNote, null);
   const [text, setText] = useState(note?.content ?? "");
   const [seen, setSeen] = useState(state);
+  const deleteFormId = note ? `delete-note-${note.id}` : undefined;
 
   if (state !== seen) {
     setSeen(state);
@@ -85,44 +86,43 @@ export function NoteEditor({
   }
 
   return (
-    <form action={action} className="space-y-2">
-      <label className="sr-only" htmlFor={note ? `note-${note.id}` : `note-new-${supplierId}`}>
-        {t("notes")}
-      </label>
-      <textarea
-        id={note ? `note-${note.id}` : `note-new-${supplierId}`}
-        name="content"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        maxLength={2000}
-        rows={3}
-        placeholder={t("notePlaceholder")}
-        className="w-full rounded-md border bg-card px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      />
-      <input type="hidden" name="supplierId" value={supplierId} />
-      {note ? <input type="hidden" name="noteId" value={note.id} /> : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <PendingButton label={note ? t("saveNote") : t("addNote")} />
-        {state?.ok ? <p className="text-xs text-primary">{t("noteSaved")}</p> : null}
-        {state && !state.ok ? (
-          <p className="text-xs text-destructive">
-            {state.error === "empty" ? t("noteEmpty") : t("actionFailed")}
-          </p>
-        ) : null}
-      </div>
-    </form>
-  );
-}
-
-export function DeleteNoteButton({ noteId }: { noteId: string }) {
-  const t = useTranslations("Catalog");
-
-  return (
-    <form action={deleteNote}>
-      <input type="hidden" name="noteId" value={noteId} />
-      <Button type="submit" variant="ghost" size="sm">
-        {t("deleteNote")}
-      </Button>
-    </form>
+    <>
+      <form action={action} className="space-y-2">
+        <label className="sr-only" htmlFor={note ? `note-${note.id}` : `note-new-${supplierId}`}>
+          {t("notes")}
+        </label>
+        <textarea
+          id={note ? `note-${note.id}` : `note-new-${supplierId}`}
+          name="content"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          maxLength={2000}
+          rows={3}
+          placeholder={t("notePlaceholder")}
+          className="w-full rounded-md border bg-card px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        />
+        <input type="hidden" name="supplierId" value={supplierId} />
+        {note ? <input type="hidden" name="noteId" value={note.id} /> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <PendingButton label={note ? t("saveNote") : t("addNote")} />
+          {note ? (
+            <Button type="submit" form={deleteFormId} variant="ghost" size="sm">
+              {t("deleteNote")}
+            </Button>
+          ) : null}
+          {state?.ok ? <p className="text-xs text-primary">{t("noteSaved")}</p> : null}
+          {state && !state.ok ? (
+            <p className="text-xs text-destructive">
+              {state.error === "empty" ? t("noteEmpty") : t("actionFailed")}
+            </p>
+          ) : null}
+        </div>
+      </form>
+      {note ? (
+        <form id={deleteFormId} action={deleteNote} className="hidden">
+          <input type="hidden" name="noteId" value={note.id} />
+        </form>
+      ) : null}
+    </>
   );
 }

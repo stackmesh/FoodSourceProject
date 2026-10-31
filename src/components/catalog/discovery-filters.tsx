@@ -57,8 +57,27 @@ export function DiscoveryFilters({
     router.push(search ? `${pathname}?${search}` : pathname);
   }
 
+  const appliedKey = [
+    query.q,
+    query.category,
+    query.city,
+    query.region,
+    query.type,
+    query.sort,
+    query.certified ? "1" : "",
+    query.maxPrice ?? "",
+    query.maxMoq ?? "",
+  ].join("\n");
+
   return (
-    <form action={apply} className="rounded-xl border bg-card p-4">
+    <form
+      key={appliedKey}
+      onSubmit={(event) => {
+        event.preventDefault();
+        apply(new FormData(event.currentTarget));
+      }}
+      className="rounded-xl border bg-card p-4"
+    >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="md:col-span-2 xl:col-span-2">
           <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("search")}</span>

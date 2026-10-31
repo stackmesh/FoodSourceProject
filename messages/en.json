@@ -1,0 +1,69 @@
+{
+  "Metadata": {
+    "title": "FoodSource",
+    "description": "Find and compare food suppliers for restaurants, manufacturers, and procurement teams."
+  },
+  "Nav": {
+    "overview": "Overview",
+    "suppliers": "Suppliers",
+    "compare": "Comparison",
+    "favorites": "Favorites",
+    "categories": "Categories",
+    "settings": "Settings",
+    "label": "Sections"
+  },
+  "Header": {
+    "searchLabel": "Search",
+    "searchPlaceholder": "Suppliers, products, categories",
+    "searchSubmit": "Search",
+    "notifications": "Notifications",
+    "noNotifications": "No new notifications",
+    "workspace": "Demo workspace",
+    "workspaceHint": "Shared workspace without sign-in",
+    "language": "Language",
+    "openNavigation": "Open navigation",
+    "navigationDescription": "Application sections"
+  },
+  "Shell": {
+    "demoBanner": "Demonstration data. Information on this platform is not confirmed commercial fact.",
+    "skipToContent": "Skip to content"
+  },
+  "Pages": {
+    "overview": {
+      "title": "Overview",
+      "description": "Supplier, category, and region summaries will appear after the catalog is loaded.",
+      "empty": "Metrics are not calculated yet. The database and application shell are in place; supplier records are the next step."
+    },
+    "suppliers": {
+      "title": "Suppliers",
+      "description": "Search by supplier, product, and category. City and delivery filters will live on this page.",
+      "empty": "The supplier catalog is empty.",
+      "query": "The query “{query}” is stored in the page address. Results will appear with the catalog."
+    },
+    "compare": {
+      "title": "Comparison",
+      "description": "Up to three suppliers side by side: price, minimum order, certifications, and delivery.",
+      "empty": "No suppliers are selected for comparison."
+    },
+    "favorites": {
+      "title": "Favorites",
+      "description": "Shortlist, notes, and contact status for the demo workspace.",
+      "empty": "No suppliers are saved yet."
+    },
+    "categories": {
+      "title": "Categories",
+      "description": "Product categories in Russian and English.",
+      "empty": "Categories are not loaded yet."
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Interface language is switched from the header. Accounts are not connected in this version.",
+      "empty": "There are no workspace preferences to change yet."
+    }
+  },
+  "NotFound": {
+    "title": "Page not found",
+    "description": "Check the address or return to the overview.",
+    "back": "Back to overview"
+  }
+}

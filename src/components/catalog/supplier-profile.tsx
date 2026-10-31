@@ -1,4 +1,5 @@
 import { CertificationBadge, SupplierBadges } from "@/components/catalog/badges";
+import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
 import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
@@ -47,6 +48,8 @@ export async function SupplierProfile({
   matchContext,
   scoreBasis,
   today,
+  observedAt,
+  timeZone,
 }: {
   supplier: CatalogSupplier;
   locale: string;
@@ -57,6 +60,8 @@ export async function SupplierProfile({
   listHref: string;
   scoreBasis: "search" | "catalog";
   today: string;
+  observedAt: string;
+  timeZone: string;
   matchContext?: {
     query: string;
     category: string;
@@ -69,6 +74,7 @@ export async function SupplierProfile({
 }) {
   const t = await getTranslations("Profile");
   const catalog = await getTranslations("Catalog");
+  const freshness = await getTranslations("Freshness");
   const categoryKey = locale === "en" ? "categoryNameEn" : "categoryNameRu";
   const deliveryNotes = [
     ...new Set(supplier.products.flatMap((product) => (product.deliveryNotes ? [product.deliveryNotes] : []))),
@@ -175,6 +181,13 @@ export async function SupplierProfile({
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
+          <FreshnessIndicator
+            supplier={supplier}
+            locale={locale}
+            observedAt={observedAt}
+            timeZone={timeZone}
+            variant="detail"
+          />
           <section className="rounded-xl border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-base font-semibold">
@@ -335,6 +348,9 @@ export async function SupplierProfile({
                       {source.sourceType === "DEMO" ? catalog("demoSource") : catalog("officialSource")}
                     </p>
                     {source.evidence ? <p className="mt-1 text-muted-foreground">{source.evidence}</p> : null}
+                    <p className="text-xs text-muted-foreground">
+                      {freshness("sourceChecked")}: {source.checkedAt ? formatDate(source.checkedAt, locale) : catalog("unavailable")}
+                    </p>
                   </li>
                 ))}
               </ul>

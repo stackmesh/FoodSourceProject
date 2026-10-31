@@ -56,7 +56,9 @@ function mapSupplier(row: {
   sourceUrl: string | null;
   dataType: CatalogSupplier["dataType"];
   verificationStatus: CatalogSupplier["verificationStatus"];
+  lastVerifiedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date | null;
   products: Array<{
     id: string;
     name: string;
@@ -79,7 +81,14 @@ function mapSupplier(row: {
     expiresAt: Date | null;
     verificationNotes: string | null;
   }>;
-  sources: CatalogSupplier["sources"];
+  sources: Array<{
+    id: string;
+    sourceType: CatalogSupplier["sources"][number]["sourceType"];
+    url: string;
+    title: string | null;
+    evidence: string | null;
+    checkedAt: Date | null;
+  }>;
 }): CatalogSupplier {
   const products = row.products.map((product) => ({
     id: product.id,
@@ -111,14 +120,23 @@ function mapSupplier(row: {
     sourceUrl: row.sourceUrl,
     dataType: row.dataType,
     verificationStatus: row.verificationStatus,
+    lastVerifiedAt: row.lastVerifiedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt?.toISOString() ?? null,
     products,
     contacts: row.contacts,
     certifications: row.certifications.map((item) => ({
       ...item,
       expiresAt: item.expiresAt?.toISOString() ?? null,
     })),
-    sources: row.sources,
+    sources: row.sources.map((source) => ({
+      id: source.id,
+      sourceType: source.sourceType,
+      url: source.url,
+      title: source.title,
+      evidence: source.evidence,
+      checkedAt: source.checkedAt?.toISOString() ?? null,
+    })),
     minPrice: prices.length ? Math.min(...prices) : null,
     minMoq: moqs.length ? Math.min(...moqs) : null,
   };

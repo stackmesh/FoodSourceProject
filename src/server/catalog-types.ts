@@ -47,6 +47,7 @@ export type CatalogSource = {
   url: string;
   title: string | null;
   evidence: string | null;
+  checkedAt: string | null;
 };
 
 export type CatalogSupplier = {
@@ -63,7 +64,9 @@ export type CatalogSupplier = {
   sourceUrl: string | null;
   dataType: DataType;
   verificationStatus: VerificationStatus;
+  lastVerifiedAt: string | null;
   createdAt: string;
+  updatedAt: string | null;
   products: CatalogProduct[];
   contacts: CatalogContact[];
   certifications: CatalogCertification[];

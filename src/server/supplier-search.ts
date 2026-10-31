@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { demoWorkspaceKey } from "@/config/site";
 import { foldSearchText, type DiscoveryQuery, type SortKey } from "@/lib/discovery-query";
+import { freshnessThresholds, isFreshnessStatus, serverTimeZone } from "@/lib/freshness";
 import { getPrisma } from "@/lib/prisma";
 import { cohortFromProductRows, sqlUnitKey } from "@/server/matching";
 
@@ -86,6 +87,10 @@ function whereSql(query: DiscoveryQuery, like: string) {
           )`
         : tracked,
     );
+  }
+
+  if (isFreshnessStatus(query.freshness)) {
+    filters.push(Prisma.sql`${freshnessSql(serverTimeZone())} = ${query.freshness}`);
   }
 
   if (query.maxPrice != null) {
@@ -215,6 +220,23 @@ export type ComparableOfferGroup = {
   unit: string;
   currency: string | null;
 };
+
+function freshnessSql(timeZone: string) {
+  return Prisma.sql`
+    CASE
+      WHEN s."updatedAt" IS NULL THEN 'unknown'
+      WHEN ((s."updatedAt" AT TIME ZONE ${timeZone}) AT TIME ZONE ${timeZone})::date
+           > (CURRENT_TIMESTAMP AT TIME ZONE ${timeZone})::date THEN 'unknown'
+      WHEN (CURRENT_TIMESTAMP AT TIME ZONE ${timeZone})::date
+           - ((s."updatedAt" AT TIME ZONE ${timeZone}) AT TIME ZONE ${timeZone})::date
+           <= ${freshnessThresholds.freshDays} THEN 'fresh'
+      WHEN (CURRENT_TIMESTAMP AT TIME ZONE ${timeZone})::date
+           - ((s."updatedAt" AT TIME ZONE ${timeZone}) AT TIME ZONE ${timeZone})::date
+           <= ${freshnessThresholds.agingDays} THEN 'aging'
+      ELSE 'stale'
+    END
+  `;
+}
 
 function comparableKind(sort: SortKey): "price" | "moq" | null {
   if (sort === "price" || sort === "price-desc") return "price";

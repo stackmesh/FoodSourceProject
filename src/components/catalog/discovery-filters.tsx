@@ -6,6 +6,7 @@ import { ChevronDown, Info, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { contactStatuses } from "@/lib/contact-tracking";
+import { freshnessStatuses } from "@/lib/freshness";
 import { sortOptions, type DiscoveryQuery, type SupplierTypeFilter } from "@/lib/discovery-query";
 import { usePathname, useRouter } from "@/i18n/navigation";
 
@@ -33,6 +34,7 @@ export function DiscoveryFilters({
 }) {
   const t = useTranslations("Discovery");
   const catalog = useTranslations("Catalog");
+  const freshness = useTranslations("Freshness");
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -49,6 +51,7 @@ export function DiscoveryFilters({
       region: String(formData.get("region") ?? ""),
       type: String(formData.get("type") ?? ""),
       contact: String(formData.get("contact") ?? ""),
+      freshness: String(formData.get("freshness") ?? ""),
       maxPrice: String(formData.get("maxPrice") ?? "").trim(),
       maxMoq: String(formData.get("maxMoq") ?? "").trim(),
     };
@@ -76,6 +79,7 @@ export function DiscoveryFilters({
     query.maxPrice ?? "",
     query.maxMoq ?? "",
     query.contact,
+    query.freshness,
   ].join("\n");
 
   return (
@@ -148,6 +152,14 @@ export function DiscoveryFilters({
             {contactStatuses.map((status) => (
               <option key={status} value={status}>
                 {catalog(`contactStatus.${status}`)}
+              </option>
+            ))}
+          </Select>
+          <Select name="freshness" label={freshness("filter")} defaultValue={query.freshness}>
+            <option value="">{t("any")}</option>
+            {freshnessStatuses.map((status) => (
+              <option key={status} value={status}>
+                {freshness(status)}
               </option>
             ))}
           </Select>

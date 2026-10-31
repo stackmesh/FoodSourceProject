@@ -113,6 +113,23 @@
     "description": "Check the address or return to the overview.",
     "back": "Back to overview"
   },
+  "Freshness": {
+    "title": "Data freshness",
+    "filter": "Freshness",
+    "fresh": "Fresh",
+    "aging": "Aging",
+    "stale": "Stale",
+    "unknown": "Unknown",
+    "created": "Record created",
+    "recordUpdated": "Record updated",
+    "verified": "Last verified",
+    "externalSync": "Last external synchronization",
+    "noSyncRecord": "No external synchronization time is stored.",
+    "sourceChecked": "Source checked",
+    "source": "Source",
+    "verification": "Verification status",
+    "disclaimer": "A recent record update is not an independent verification."
+  },
   "Catalog": {
     "demo": "Demo data",
     "demoSource": "Demonstration source, not a citation",

@@ -10,7 +10,7 @@ import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
 import { parseDiscoveryQuery, sortOptions, toSearchParams } from "@/lib/discovery-query";
 import { defaultMatchWeights } from "@/server/matching";
-import { requestCalendarToday } from "@/lib/today";
+import { requestClock } from "@/lib/today";
 import { getWorkspace, searchSuppliers } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
@@ -58,7 +58,7 @@ async function DiscoveryResults({
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
   }
 
-  const { result, savedIds, tracking, today, comparing } = loaded;
+  const { result, savedIds, tracking, today, observedAt, timeZone, comparing } = loaded;
 
   return (
       <div className="space-y-4">
@@ -118,6 +118,8 @@ async function DiscoveryResults({
                 profileHref={profileHref(supplier.slug, query)}
                 tracking={tracking.get(supplier.id) ?? null}
                 today={today}
+                observedAt={observedAt}
+                timeZone={timeZone}
                 context={{
                   query: query.q,
                   category: query.category,
@@ -138,18 +140,20 @@ async function DiscoveryResults({
 
 async function loadDiscovery(query: ReturnType<typeof parseDiscoveryQuery>) {
   try {
-    const [result, workspace, jar, today] = await Promise.all([
+    const [result, workspace, jar, clock] = await Promise.all([
       searchSuppliers(query),
       getWorkspace(),
       cookies(),
-      requestCalendarToday(),
+      requestClock(),
     ]);
 
     return {
       result,
       savedIds: new Set(workspace.map((entry) => entry.supplierId)),
       tracking: new Map(workspace.map((entry) => [entry.supplierId, entry])),
-      today,
+      today: clock.today,
+      observedAt: clock.observedAt,
+      timeZone: clock.timeZone,
       comparing: new Set(parseCompareSlugs(jar.get(compareCookieName)?.value)),
     };
   } catch (error) {

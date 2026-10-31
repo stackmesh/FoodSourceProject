@@ -1,4 +1,5 @@
 import { CertificateStatus } from "@/components/catalog/badges";
+import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
 import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { ContactStatusForm } from "@/components/catalog/workspace-forms";
@@ -68,6 +69,8 @@ export async function SupplierCard({
   profileHref,
   tracking,
   today,
+  observedAt,
+  timeZone,
 }: {
   supplier: CatalogSupplier;
   locale: string;
@@ -87,6 +90,8 @@ export async function SupplierCard({
   profileHref: string;
   tracking: WorkspaceEntry | null;
   today: string;
+  observedAt: string;
+  timeZone: string;
 }) {
   const t = await getTranslations("Catalog");
   const categories = [
@@ -206,6 +211,13 @@ export async function SupplierCard({
           <p className="text-xs text-muted-foreground">{t("deliveryUnavailable")}</p>
         )}
       </div>
+      <FreshnessIndicator
+        supplier={supplier}
+        locale={locale}
+        observedAt={observedAt}
+        timeZone={timeZone}
+        variant="card"
+      />
       {showScore ? (
         <div className="mt-4" title={t("scoreHint")}>
           <MatchScore report={report} />

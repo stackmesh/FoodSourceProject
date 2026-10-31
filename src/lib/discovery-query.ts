@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isContactStatus, type ContactStatus } from "@/lib/contact-tracking";
+import { isFreshnessStatus, type FreshnessStatus } from "@/lib/freshness";
 
 export const sortOptions = [
   { value: "match", label: "sortMatch" },
@@ -40,6 +41,7 @@ export type DiscoveryQuery = {
   type: SupplierTypeFilter | "";
   certified: boolean;
   contact: ContactStatus | "";
+  freshness: FreshnessStatus | "";
   maxPrice: number | null;
   maxMoq: number | null;
   sort: SortKey;
@@ -55,6 +57,7 @@ const inputSchema = z.object({
   type: z.string().trim().max(40).optional().default(""),
   certified: z.string().trim().max(8).optional().default(""),
   contact: z.string().trim().max(40).optional().default(""),
+  freshness: z.string().trim().max(20).optional().default(""),
   maxPrice: z.string().trim().max(20).optional().default(""),
   maxMoq: z.string().trim().max(20).optional().default(""),
   sort: z.string().trim().max(32).optional().default(""),
@@ -97,6 +100,7 @@ export function parseDiscoveryQuery(
     type: first(raw.type),
     certified: first(raw.certified),
     contact: first(raw.contact),
+    freshness: first(raw.freshness),
     maxPrice: first(raw.maxPrice),
     maxMoq: first(raw.maxMoq),
     sort: first(raw.sort),
@@ -114,6 +118,7 @@ export function parseDiscoveryQuery(
     type: isSupplierType(parsed.type) ? parsed.type : "",
     certified: parsed.certified === "1",
     contact: isContactStatus(parsed.contact) ? parsed.contact : "",
+    freshness: isFreshnessStatus(parsed.freshness) ? parsed.freshness : "",
     maxPrice: numberOrNull(parsed.maxPrice),
     maxMoq: numberOrNull(parsed.maxMoq),
     sort: isSort(parsed.sort) ? parsed.sort : "name",
@@ -136,6 +141,7 @@ export function toSearchParams(query: DiscoveryQuery, page = query.page) {
   if (query.type) params.set("type", query.type);
   if (query.certified) params.set("certified", "1");
   if (query.contact) params.set("contact", query.contact);
+  if (query.freshness) params.set("freshness", query.freshness);
   if (query.maxPrice != null) params.set("maxPrice", String(query.maxPrice));
   if (query.maxMoq != null) params.set("maxMoq", String(query.maxMoq));
   if (query.sort !== "name") params.set("sort", query.sort);
@@ -151,6 +157,7 @@ export function hasRankingContext(query: DiscoveryQuery) {
       query.city ||
       query.region ||
       query.certified ||
+      query.freshness ||
       query.maxPrice != null ||
       query.maxMoq != null,
   );

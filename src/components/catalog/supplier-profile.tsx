@@ -161,7 +161,9 @@ export async function SupplierProfile({
                   <a href={source.url} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
                     {source.title ?? source.url}
                   </a>
-                  <p className="text-xs text-muted-foreground">{catalog("demoSource")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {source.sourceType === "DEMO" ? catalog("demoSource") : catalog("officialSource")}
+                  </p>
                   {source.evidence ? <p className="mt-1 text-muted-foreground">{source.evidence}</p> : null}
                 </li>
               ))}

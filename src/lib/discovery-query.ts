@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 const sorts = ["relevance", "price", "moq", "name"] as const;
 const supplierTypes = [
   "MANUFACTURER",
@@ -25,20 +27,28 @@ export type DiscoveryQuery = {
   page: number;
 };
 
+const inputSchema = z.object({
+  q: z.string().trim().max(200).optional().default(""),
+  category: z.string().trim().max(80).optional().default(""),
+  city: z.string().trim().max(120).optional().default(""),
+  region: z.string().trim().max(160).optional().default(""),
+  type: z.string().trim().max(40).optional().default(""),
+  certified: z.string().trim().max(8).optional().default(""),
+  maxPrice: z.string().trim().max(20).optional().default(""),
+  maxMoq: z.string().trim().max(20).optional().default(""),
+  sort: z.string().trim().max(20).optional().default(""),
+  page: z.string().trim().max(8).optional().default(""),
+});
+
 function first(value: string | string[] | undefined) {
-  return (Array.isArray(value) ? value[0] : value)?.trim() ?? "";
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw ?? "";
 }
 
 function numberOrNull(value: string) {
-  if (!value) {
-    return null;
-  }
-
+  if (!value) return null;
   const parsed = Number(value.replace(",", "."));
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return null;
-  }
-
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
   return parsed;
 }
 
@@ -53,22 +63,37 @@ function isSupplierType(value: string): value is SupplierTypeFilter {
 export function parseDiscoveryQuery(
   raw: Record<string, string | string[] | undefined>,
 ): DiscoveryQuery {
-  const sort = first(raw.sort);
-  const type = first(raw.type);
-  const page = Number(first(raw.page) || "1");
-
-  return {
+  const parsed = inputSchema.parse({
     q: first(raw.q),
     category: first(raw.category),
     city: first(raw.city),
     region: first(raw.region),
-    type: isSupplierType(type) ? type : "",
-    certified: first(raw.certified) === "1",
-    maxPrice: numberOrNull(first(raw.maxPrice)),
-    maxMoq: numberOrNull(first(raw.maxMoq)),
-    sort: isSort(sort) ? sort : "name",
-    page: Number.isInteger(page) && page > 0 ? page : 1,
+    type: first(raw.type),
+    certified: first(raw.certified),
+    maxPrice: first(raw.maxPrice),
+    maxMoq: first(raw.maxMoq),
+    sort: first(raw.sort),
+    page: first(raw.page),
+  });
+  const category = /^[a-z0-9-]*$/.test(parsed.category) ? parsed.category : "";
+  const page = Number(parsed.page || "1");
+
+  return {
+    q: parsed.q,
+    category,
+    city: parsed.city,
+    region: parsed.region,
+    type: isSupplierType(parsed.type) ? parsed.type : "",
+    certified: parsed.certified === "1",
+    maxPrice: numberOrNull(parsed.maxPrice),
+    maxMoq: numberOrNull(parsed.maxMoq),
+    sort: isSort(parsed.sort) ? parsed.sort : "name",
+    page: Number.isInteger(page) && page > 0 && page <= 10000 ? page : 1,
   };
+}
+
+export function foldSearchText(value: string) {
+  return value.toLocaleLowerCase("ru").replaceAll("ё", "е").replace(/[%_\\]/g, "");
 }
 
 export function toSearchParams(query: DiscoveryQuery, page = query.page) {

@@ -99,6 +99,7 @@
   "Catalog": {
     "demo": "Демонстрационные данные",
     "demoSource": "Демонстрационный источник, не цитата",
+    "officialSource": "Официальный сайт",
     "unavailable": "Не указано",
     "verificationLabel": "Проверка данных",
     "save": "В избранное",
@@ -126,12 +127,12 @@
     "moq": "Мин. заказ",
     "priceFrom": "от {value}",
     "moqFrom": "от {value}",
-    "priceUnavailable": "Цена не указана",
-    "moqUnavailable": "Мин. заказ не указан",
+    "priceUnavailable": "Не указано",
+    "moqUnavailable": "Не указано",
     "certifications": "Сертификаты",
     "certCount": "{count}",
     "noCerts": "Сертификаты не указаны",
-    "deliveryUnavailable": "Условия поставки не указаны",
+    "deliveryUnavailable": "Не указано",
     "score": "Совпадение {score}",
     "scoreHint": "Оценка по категории, географии, цене, минимальному заказу, сертификатам и доставке. Это не проверка поставщика.",
     "verification": {

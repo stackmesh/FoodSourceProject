@@ -1,5 +1,5 @@
 import type { CatalogSupplier } from "@/server/catalog-types";
-import type { DiscoveryQuery } from "@/lib/discovery-query";
+import { foldSearchText, type DiscoveryQuery } from "@/lib/discovery-query";
 
 export const scoreWeights = {
   category: 0.35,
@@ -30,20 +30,17 @@ export function scoreSupplier(
   priceRange: ScoreRange,
   moqRange: ScoreRange,
 ) {
-  const needle = query.q.toLocaleLowerCase("ru");
-  const name = supplier.name.toLocaleLowerCase("ru");
-  const city = (supplier.city ?? "").toLocaleLowerCase("ru");
-  const region = (supplier.region ?? "").toLocaleLowerCase("ru");
+  const needle = foldSearchText(query.q);
+  const name = foldSearchText(supplier.name);
+  const city = foldSearchText(supplier.city ?? "");
+  const region = foldSearchText(supplier.region ?? "");
 
   let category = query.q || query.category ? 0.15 : 0.5;
   if (query.category && supplier.products.some((product) => product.categorySlug === query.category)) {
     category = 1;
   } else if (needle) {
     const productHit = supplier.products.some((product) =>
-      [product.name, product.categoryNameRu, product.categoryNameEn]
-        .join(" ")
-        .toLocaleLowerCase("ru")
-        .includes(needle),
+      foldSearchText([product.name, product.categoryNameRu, product.categoryNameEn].join(" ")).includes(needle),
     );
     category = productHit ? 1 : name.includes(needle) ? 0.55 : 0.15;
   }

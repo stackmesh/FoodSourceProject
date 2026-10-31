@@ -92,6 +92,8 @@ model Supplier {
 
   @@index([name])
   @@index([city, region])
+  @@index([isActive, city])
+  @@index([isActive, region])
   @@index([dataType, verificationStatus])
   @@index([supplierType])
 }
@@ -136,6 +138,7 @@ model SupplierProduct {
   @@index([categoryId])
   @@index([name])
   @@index([estimatedPrice])
+  @@index([minimumOrderQuantity])
   @@index([dataType])
 }
 

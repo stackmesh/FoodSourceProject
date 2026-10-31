@@ -1,21 +1,5 @@
-import "dotenv/config";
 import { createHash } from "node:crypto";
-import { PrismaPg } from "@prisma/adapter-pg";
-import {
-  PrismaClient,
-  type CertificationStatus,
-  type SupplierType,
-} from "../src/generated/prisma/client";
-
-const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set.");
-}
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString }),
-});
+import type { CertificationStatus, SupplierType } from "../src/generated/prisma/client";
 
 const categories = [
   { slug: "meat", nameRu: "Мясо и птица", nameEn: "Meat and poultry", sortOrder: 1 },
@@ -237,42 +221,6 @@ const suppliers: SupplierSeed[] = [
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
   {
-    slug: "uralskie-krupy",
-    name: "ДЕМО — Уральские крупы",
-    type: "DISTRIBUTOR",
-    city: "Екатеринбург",
-    region: "Свердловская область",
-    products: [
-      { category: "grocery", name: "Гречка ядрица", price: 86, moq: 150, unit: "кг", delivery: delivery.region },
-      { category: "grocery", name: "Овсяные хлопья", price: 74, moq: 100, unit: "кг", delivery: delivery.region },
-    ],
-    certs: [],
-  },
-  {
-    slug: "yuzhnaya-bakaleya",
-    name: "ДЕМО — Южная бакалея",
-    type: "WHOLESALER",
-    city: "Ростов-на-Дону",
-    region: "Ростовская область",
-    products: [
-      { category: "grocery", name: "Сахар песок", price: 62, moq: 500, unit: "кг", delivery: delivery.federal },
-      { category: "grocery", name: "Соль пищевая", price: 18, moq: 200, unit: "кг", delivery: delivery.federal },
-    ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
-  },
-  {
-    slug: "nizhegorodskiy-sklad-krup",
-    name: "ДЕМО — Нижегородский склад круп",
-    type: "DISTRIBUTOR",
-    city: "Нижний Новгород",
-    region: "Нижегородская область",
-    products: [
-      { category: "grocery", name: "Макароны группа А", price: 70, moq: 120, unit: "кг", delivery: delivery.region },
-      { category: "grocery", name: "Рис пропаренный", price: 110, moq: null, unit: "кг", delivery: delivery.region },
-    ],
-    certs: [],
-  },
-  {
     slug: "severnaya-zamorozka",
     name: "ДЕМО — Северная заморозка",
     type: "DISTRIBUTOR",
@@ -281,30 +229,6 @@ const suppliers: SupplierSeed[] = [
     products: [
       { category: "frozen", name: "Овощная смесь", price: 145, moq: 80, unit: "кг", delivery: delivery.federal },
       { category: "frozen", name: "Картофель фри", price: 160, moq: 60, unit: "кг", delivery: delivery.federal },
-    ],
-    certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
-  },
-  {
-    slug: "holod-urala",
-    name: "ДЕМО — Холод Урала",
-    type: "WHOLESALER",
-    city: "Екатеринбург",
-    region: "Свердловская область",
-    products: [
-      { category: "frozen", name: "Пельмени говяжьи", price: 340, moq: 40, unit: "кг", delivery: delivery.region },
-      { category: "frozen", name: "Ягоды смесь", price: 290, moq: 20, unit: "кг", delivery: delivery.region },
-    ],
-    certs: [],
-  },
-  {
-    slug: "donskoy-holod",
-    name: "ДЕМО — Донской холод",
-    type: "DISTRIBUTOR",
-    city: "Ростов-на-Дону",
-    region: "Ростовская область",
-    products: [
-      { category: "frozen", name: "Курица замороженная", price: 210, moq: 200, unit: "кг", delivery: delivery.federal },
-      { category: "meat", name: "Куриное филе замороженное", price: 330, moq: 100, unit: "кг", delivery: delivery.federal },
     ],
     certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
   },
@@ -321,30 +245,6 @@ const suppliers: SupplierSeed[] = [
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
   {
-    slug: "kubanskie-soki",
-    name: "ДЕМО — Кубанские соки",
-    type: "MANUFACTURER",
-    city: "Краснодар",
-    region: "Краснодарский край",
-    products: [
-      { category: "drinks", name: "Нектар персиковый", price: 88, moq: 60, unit: "л", delivery: delivery.federal },
-      { category: "drinks", name: "Морс клюквенный", price: 120, moq: 40, unit: "л", delivery: delivery.federal },
-    ],
-    certs: [],
-  },
-  {
-    slug: "volzhskaya-voda",
-    name: "ДЕМО — Волжская вода",
-    type: "MANUFACTURER",
-    city: "Нижний Новгород",
-    region: "Нижегородская область",
-    products: [
-      { category: "drinks", name: "Вода газированная 1,5 л", price: 32, moq: 100, unit: "шт", delivery: delivery.region },
-      { category: "drinks", name: "Лимонад", price: 54, moq: 80, unit: "л", delivery: delivery.region },
-    ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
-  },
-  {
     slug: "upakovka-povolzhyya",
     name: "ДЕМО — Упаковка Поволжья",
     type: "PACKAGING",
@@ -356,30 +256,6 @@ const suppliers: SupplierSeed[] = [
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
-  {
-    slug: "moskovskaya-tara",
-    name: "ДЕМО — Московская тара",
-    type: "PACKAGING",
-    city: "Москва",
-    region: "Московская область",
-    products: [
-      { category: "packaging", name: "Плёнка пищевая", price: 240, moq: 20, unit: "шт", delivery: delivery.city },
-      { category: "packaging", name: "Перчатки нитриловые", price: 180, moq: 10, unit: "упак", delivery: delivery.city },
-    ],
-    certs: [],
-  },
-  {
-    slug: "sibirskaya-upakovka",
-    name: "ДЕМО — Сибирская упаковка",
-    type: "PACKAGING",
-    city: "Новосибирск",
-    region: "Новосибирская область",
-    products: [
-      { category: "packaging", name: "Короб гофрокартон", price: null, moq: 100, unit: "шт", delivery: delivery.pickup },
-      { category: "packaging", name: "Скотч упаковочный", price: 95, moq: 36, unit: "шт", delivery: delivery.pickup },
-    ],
-    certs: [],
-  },
 ];
 
 function idFor(key: string) {
@@ -387,118 +263,4 @@ function idFor(key: string) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-async function main() {
-  await prisma.supplier.deleteMany({ where: { dataType: "DEMO" } });
-  await prisma.category.deleteMany();
-
-  const description =
-    "Демонстрационная карточка. Название, цены, минимальный заказ, контакты и сертификаты вымышлены и не являются коммерческим предложением или проверенным источником.";
-
-  for (const category of categories) {
-    await prisma.category.create({
-      data: {
-        id: idFor(`category:${category.slug}`),
-        ...category,
-      },
-    });
-  }
-
-  for (const [index, supplier] of suppliers.entries()) {
-    const supplierId = idFor(`supplier:${supplier.slug}`);
-    const createdAt = new Date(Date.UTC(2026, 8, 1) + index * 36 * 60 * 60 * 1000);
-
-    await prisma.supplier.create({
-      data: {
-        id: supplierId,
-        slug: supplier.slug,
-        name: supplier.name,
-        description,
-        supplierType: supplier.type,
-        city: supplier.city,
-        region: supplier.region,
-        country: "Россия",
-        address: `Демонстрационный адрес, ${supplier.city}`,
-        website: `https://example.com/demo/${supplier.slug}`,
-        sourceUrl: `https://example.com/demo/${supplier.slug}`,
-        dataType: "DEMO",
-        verificationStatus: "UNVERIFIED",
-        isActive: true,
-        createdAt,
-        products: {
-          create: supplier.products.map((product) => ({
-            id: idFor(`product:${supplier.slug}:${product.name}`),
-            categoryId: idFor(`category:${product.category}`),
-            name: product.name,
-            estimatedPrice: product.price,
-            currency: "RUB",
-            minimumOrderQuantity: product.moq,
-            unit: product.unit,
-            deliveryNotes: product.delivery,
-            isAvailable: true,
-            dataType: "DEMO",
-            priceUpdatedAt: product.price == null ? null : createdAt,
-          })),
-        },
-        contacts: {
-          create: [
-            {
-              id: idFor(`contact:${supplier.slug}:phone`),
-              type: "PHONE",
-              label: "Демо-телефон",
-              value: `+7 (000) 100-${String(index + 1).padStart(2, "0")}-01`,
-              isPublic: true,
-            },
-            {
-              id: idFor(`contact:${supplier.slug}:email`),
-              type: "EMAIL",
-              label: "Демо-почта",
-              value: `demo+${supplier.slug}@example.com`,
-              isPublic: true,
-            },
-            {
-              id: idFor(`contact:${supplier.slug}:web`),
-              type: "WEBSITE",
-              label: "Демо-сайт",
-              value: `https://example.com/demo/${supplier.slug}`,
-              isPublic: true,
-            },
-          ],
-        },
-        certifications: {
-          create: supplier.certs.map((cert) => ({
-            id: idFor(`cert:${supplier.slug}:${cert.name}`),
-            name: cert.name,
-            status: cert.status,
-            issuer: "Демонстрационный орган",
-            verificationNotes:
-              "Запись вымышлена. Документ не проверялся и не подтверждает соответствие.",
-          })),
-        },
-        sources: {
-          create: [
-            {
-              id: idFor(`source:${supplier.slug}`),
-              sourceType: "DEMO",
-              url: `https://example.com/demo/${supplier.slug}`,
-              title: "Демонстрационная карточка",
-              evidence:
-                "Fabricated sample. This URL is a placeholder, not a citation of a real company.",
-              isPrimary: true,
-              checkedAt: createdAt,
-            },
-          ],
-        },
-      },
-    });
-  }
-}
-
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error: unknown) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+export { categories, suppliers, idFor };

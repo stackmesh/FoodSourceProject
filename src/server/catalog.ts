@@ -6,14 +6,13 @@ import {
 } from "@/lib/discovery-query";
 import { scoreSupplier } from "@/lib/scoring";
 import { getPrisma } from "@/lib/prisma";
+import { querySupplierPage } from "@/server/supplier-search";
 import {
   DataError,
   type CatalogSupplier,
   type WorkspaceEntry,
   type WorkspaceNote,
 } from "@/server/catalog-types";
-
-const pageSize = 9;
 
 const supplierInclude = {
   products: {
@@ -134,130 +133,121 @@ async function readCatalog() {
   }
 }
 
-function includesQuery(supplier: CatalogSupplier, needle: string) {
-  return [supplier.name, supplier.city, supplier.region, ...supplier.products.flatMap((product) => [
-    product.name,
-    product.categoryNameRu,
-    product.categoryNameEn,
-  ])]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toLocaleLowerCase("ru")
-    .includes(needle);
-}
-
-function matches(supplier: CatalogSupplier, query: DiscoveryQuery) {
-  if (query.category && !supplier.products.some((product) => product.categorySlug === query.category)) {
-    return false;
-  }
-  if (query.city && supplier.city !== query.city) return false;
-  if (query.region && supplier.region !== query.region) return false;
-  if (query.type && supplier.supplierType !== query.type) return false;
-  if (query.certified && supplier.certifications.length === 0) return false;
-  if (query.maxPrice != null && (supplier.minPrice == null || supplier.minPrice > query.maxPrice)) {
-    return false;
-  }
-  if (query.maxMoq != null && (supplier.minMoq == null || supplier.minMoq > query.maxMoq)) {
-    return false;
-  }
-  if (query.q && !includesQuery(supplier, query.q.toLocaleLowerCase("ru"))) return false;
-  return true;
-}
-
-function range(values: Array<number | null>) {
-  const present = values.filter((value): value is number => value != null);
-  if (!present.length) return null;
-  return { min: Math.min(...present), max: Math.max(...present) };
-}
-
 export async function getCatalog() {
   return readCatalog();
 }
 
 export async function getSupplier(slug: string) {
-  const catalog = await readCatalog();
-  return catalog.find((supplier) => supplier.slug === slug) ?? null;
-}
-
-export async function getSuppliersBySlugs(slugs: string[]) {
-  const catalog = await readCatalog();
-  return slugs.flatMap((slug) => {
-    const supplier = catalog.find((item) => item.slug === slug);
-    return supplier ? [supplier] : [];
-  });
-}
-
-export async function searchSuppliers(query: DiscoveryQuery) {
-  const catalog = await readCatalog();
-  const filtered = catalog.filter((supplier) => matches(supplier, query));
-  const priceRange = range(filtered.map((supplier) => supplier.minPrice));
-  const moqRange = range(filtered.map((supplier) => supplier.minMoq));
-  const ranked = filtered.map((supplier) => ({
-    supplier,
-    score: scoreSupplier(supplier, query, priceRange, moqRange),
-  }));
-
-  ranked.sort((left, right) => {
-    if (query.sort === "price") {
-      return compareNullable(left.supplier.minPrice, right.supplier.minPrice) || byName(left.supplier, right.supplier);
-    }
-    if (query.sort === "moq") {
-      return compareNullable(left.supplier.minMoq, right.supplier.minMoq) || byName(left.supplier, right.supplier);
-    }
-    if (query.sort === "relevance") {
-      return right.score - left.score || byName(left.supplier, right.supplier);
-    }
-    return byName(left.supplier, right.supplier);
-  });
-
-  const pages = Math.max(1, Math.ceil(ranked.length / pageSize));
-  const page = Math.min(query.page, pages);
-  const start = (page - 1) * pageSize;
-
-  return {
-    items: ranked.slice(start, start + pageSize),
-    total: ranked.length,
-    page,
-    pages,
-    showScore: hasRankingContext(query) || query.sort === "relevance",
-    facets: {
-      categories: categoryFacets(catalog),
-      cities: unique(catalog.map((supplier) => supplier.city)),
-      regions: unique(catalog.map((supplier) => supplier.region)),
-    },
-  };
-}
-
-export async function getDashboard() {
-  const catalog = await readCatalog();
-  let savedCount = 0;
-  let categoryCount = 0;
-
   try {
-    [savedCount, categoryCount] = await Promise.all([
-      getPrisma().shortlist.count({ where: { workspaceKey: demoWorkspaceKey } }),
-      getPrisma().category.count(),
-    ]);
+    const row = await getPrisma().supplier.findFirst({
+      where: { slug, isActive: true },
+      include: supplierInclude,
+    });
+    return row ? mapSupplier(row as Parameters<typeof mapSupplier>[0]) : null;
   } catch (error) {
     console.error(error);
     throw new DataError();
   }
-  const regions = new Set(catalog.flatMap((supplier) => (supplier.region ? [supplier.region] : [])));
-  const recent = [...catalog].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5);
+}
 
-  return {
-    supplierCount: catalog.length,
-    categoryCount,
-    regionCount: regions.size,
-    savedCount,
-    recent,
-    popular: categoryFacets(catalog).slice(0, 6),
-  };
+export async function getSuppliersBySlugs(slugs: string[]) {
+  if (!slugs.length) return [];
+
+  try {
+    const rows = await getPrisma().supplier.findMany({
+      where: { slug: { in: slugs }, isActive: true },
+      include: supplierInclude,
+    });
+    const bySlug = new Map(rows.map((row) => [row.slug, mapSupplier(row as Parameters<typeof mapSupplier>[0])]));
+    return slugs.flatMap((slug) => {
+      const supplier = bySlug.get(slug);
+      return supplier ? [supplier] : [];
+    });
+  } catch (error) {
+    console.error(error);
+    throw new DataError();
+  }
+}
+
+export async function searchSuppliers(query: DiscoveryQuery) {
+  try {
+    const page = await querySupplierPage(query);
+    const rows = page.ids.length
+      ? await getPrisma().supplier.findMany({
+          where: { id: { in: page.ids } },
+          include: supplierInclude,
+        })
+      : [];
+    const byId = new Map(
+      rows.map((row) => [row.id, mapSupplier(row as Parameters<typeof mapSupplier>[0])]),
+    );
+    const facets = await loadFacets();
+
+    return {
+      items: page.ids.flatMap((id) => {
+        const supplier = byId.get(id);
+        if (!supplier) return [];
+        return [
+          {
+            supplier,
+            score: scoreSupplier(supplier, query, page.priceRange, page.moqRange),
+          },
+        ];
+      }),
+      total: page.total,
+      page: page.page,
+      pages: page.pages,
+      showScore: hasRankingContext(query) || query.sort === "relevance",
+      facets,
+    };
+  } catch (error) {
+    console.error(error);
+    throw new DataError();
+  }
+}
+
+export async function getDashboard() {
+  try {
+    const prisma = getPrisma();
+    const [supplierCount, categoryCount, savedCount, regions, recentRows, popular] = await Promise.all([
+      prisma.supplier.count({ where: { isActive: true } }),
+      prisma.category.count(),
+      prisma.shortlist.count({ where: { workspaceKey: demoWorkspaceKey } }),
+      prisma.supplier.findMany({
+        where: { isActive: true, region: { not: null } },
+        distinct: ["region"],
+        select: { region: true },
+      }),
+      prisma.supplier.findMany({
+        where: { isActive: true },
+        include: supplierInclude,
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+      categoryCounts(6),
+    ]);
+
+    return {
+      supplierCount,
+      categoryCount,
+      regionCount: regions.length,
+      savedCount,
+      recent: recentRows.map((row) => mapSupplier(row as Parameters<typeof mapSupplier>[0])),
+      popular,
+    };
+  } catch (error) {
+    console.error(error);
+    throw new DataError();
+  }
 }
 
 export async function getCategories() {
-  const catalog = await readCatalog();
-  return categoryFacets(catalog);
+  try {
+    return await categoryCounts();
+  } catch (error) {
+    console.error(error);
+    throw new DataError();
+  }
 }
 
 export async function getWorkspace(): Promise<WorkspaceEntry[]> {
@@ -301,43 +291,46 @@ export async function getSavedIds() {
   return new Set(workspace.map((entry) => entry.supplierId));
 }
 
-function categoryFacets(catalog: CatalogSupplier[]) {
-  const facets = new Map<string, { slug: string; nameRu: string; nameEn: string; count: number }>();
+async function loadFacets() {
+  const prisma = getPrisma();
+  const [categories, cities, regions] = await Promise.all([
+    categoryCounts(),
+    prisma.supplier.findMany({
+      where: { isActive: true, city: { not: null } },
+      distinct: ["city"],
+      select: { city: true },
+    }),
+    prisma.supplier.findMany({
+      where: { isActive: true, region: { not: null } },
+      distinct: ["region"],
+      select: { region: true },
+    }),
+  ]);
 
-  for (const supplier of catalog) {
-    const seen = new Set<string>();
-    for (const product of supplier.products) {
-      if (seen.has(product.categorySlug)) continue;
-      seen.add(product.categorySlug);
-      const current = facets.get(product.categorySlug) ?? {
-        slug: product.categorySlug,
-        nameRu: product.categoryNameRu,
-        nameEn: product.categoryNameEn,
-        count: 0,
-      };
-      current.count += 1;
-      facets.set(product.categorySlug, current);
-    }
-  }
-
-  return [...facets.values()].sort((left, right) => right.count - left.count || left.nameRu.localeCompare(right.nameRu, "ru"));
+  return {
+    categories,
+    cities: cities
+      .flatMap((row) => (row.city ? [row.city] : []))
+      .sort((left, right) => left.localeCompare(right, "ru")),
+    regions: regions
+      .flatMap((row) => (row.region ? [row.region] : []))
+      .sort((left, right) => left.localeCompare(right, "ru")),
+  };
 }
 
-function unique(values: Array<string | null>) {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))].sort((left, right) =>
-    left.localeCompare(right, "ru"),
-  );
-}
+async function categoryCounts(limit?: number) {
+  const rows = await getPrisma().$queryRaw<
+    Array<{ slug: string; nameRu: string; nameEn: string; count: number }>
+  >`
+    SELECT c."slug", c."nameRu", c."nameEn", COUNT(DISTINCT p."supplierId")::int AS count
+    FROM "Category" c
+    JOIN "SupplierProduct" p ON p."categoryId" = c."id"
+    JOIN "Supplier" s ON s."id" = p."supplierId" AND s."isActive" = true
+    GROUP BY c."id", c."slug", c."nameRu", c."nameEn"
+    ORDER BY count DESC, c."nameRu" ASC
+  `;
 
-function byName(left: CatalogSupplier, right: CatalogSupplier) {
-  return left.name.localeCompare(right.name, "ru");
-}
-
-function compareNullable(left: number | null, right: number | null) {
-  if (left == null && right == null) return 0;
-  if (left == null) return 1;
-  if (right == null) return -1;
-  return left - right;
+  return limit ? rows.slice(0, limit) : rows;
 }
 
 export type { ContactStatus };

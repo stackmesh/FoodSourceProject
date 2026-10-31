@@ -97,9 +97,10 @@
     "back": "Back to overview"
   },
   "Catalog": {
-    "demo": "Demonstration data",
+    "demo": "Demo data",
     "demoSource": "Demonstration source, not a citation",
-    "unavailable": "Not specified",
+    "officialSource": "Official website",
+    "unavailable": "Not available",
     "verificationLabel": "Data check",
     "save": "Save",
     "saved": "Saved",
@@ -126,12 +127,12 @@
     "moq": "MOQ",
     "priceFrom": "from {value}",
     "moqFrom": "from {value}",
-    "priceUnavailable": "Price not specified",
-    "moqUnavailable": "MOQ not specified",
+    "priceUnavailable": "Not available",
+    "moqUnavailable": "Not available",
     "certifications": "Certifications",
     "certCount": "{count}",
     "noCerts": "No certifications listed",
-    "deliveryUnavailable": "Delivery terms not specified",
+    "deliveryUnavailable": "Not available",
     "score": "Match {score}",
     "scoreHint": "Score uses category, geography, price, MOQ, certifications, and delivery. It is not a supplier audit.",
     "verification": {

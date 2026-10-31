@@ -22,7 +22,37 @@
     "workspaceHint": "Shared workspace without sign-in",
     "language": "Language",
     "openNavigation": "Open navigation",
-    "navigationDescription": "Application sections"
+    "navigationDescription": "Application sections",
+    "findSuppliers": "Find suppliers",
+    "close": "Close"
+  },
+  "Footer": {
+    "note": "Demonstration workspace. Supplier records are not loaded yet, and nothing here is a confirmed commercial offer."
+  },
+  "Landing": {
+    "eyebrow": "For restaurants and procurement",
+    "title": "Find food suppliers and compare their terms",
+    "subtitle": "FoodSource is a place to look up suppliers by product, category, and city, then keep a shortlist. The catalog is still empty. The interface is available in Russian and English.",
+    "browseSuppliers": "Open the supplier catalog",
+    "browseCategories": "Browse categories",
+    "searchTitle": "Search",
+    "searchText": "Look up a supplier, product, or category. The query stays in the page address.",
+    "compareTitle": "Compare",
+    "compareText": "Place up to three suppliers side by side once the catalog is loaded.",
+    "saveTitle": "Save",
+    "saveText": "Keep a shortlist with notes and a contact status for the demo workspace.",
+    "categoriesTitle": "Categories",
+    "categoriesText": "Choose a category to open the catalog with that name in the search.",
+    "categories": {
+      "meat": "Meat",
+      "fish": "Fish",
+      "produce": "Produce",
+      "dairy": "Dairy",
+      "grocery": "Grocery",
+      "frozen": "Frozen",
+      "drinks": "Drinks",
+      "packaging": "Packaging"
+    }
   },
   "Shell": {
     "demoBanner": "Demonstration data. Information on this platform is not confirmed commercial fact.",

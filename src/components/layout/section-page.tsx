@@ -24,10 +24,13 @@ export async function SectionPage({
     page === "suppliers" && trimmed ? t("query", { query: trimmed }) : t("empty");
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-        {t("description")}
-      </p>
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-12">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          {t("description")}
+        </p>
+      </div>
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <p className="text-sm leading-6 text-muted-foreground">{body}</p>
       </div>

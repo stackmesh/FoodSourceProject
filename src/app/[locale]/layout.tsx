@@ -56,7 +56,7 @@ export default async function LocaleLayout({
       className={`${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full bg-background text-foreground">
+      <body className="flex min-h-svh flex-col bg-background text-foreground">
         <NextIntlClientProvider>
           <AppShell>{children}</AppShell>
         </NextIntlClientProvider>

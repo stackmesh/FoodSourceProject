@@ -1,5 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
-import { SectionPage, sectionMetadata } from "@/components/layout/section-page";
+import { getTranslations } from "next-intl/server";
+import { HomePage } from "@/components/landing/home-page";
 import { assertLocale } from "@/i18n/locale";
 
 export async function generateMetadata({
@@ -8,7 +9,9 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }) {
   const locale = assertLocale((await params).locale);
-  return sectionMetadata("overview", locale);
+  const t = await getTranslations({ locale, namespace: "Landing" });
+
+  return { title: t("title") };
 }
 
 export default async function OverviewPage({
@@ -19,5 +22,5 @@ export default async function OverviewPage({
   const locale = assertLocale((await params).locale);
   setRequestLocale(locale);
 
-  return <SectionPage page="overview" />;
+  return <HomePage />;
 }

@@ -1,6 +1,6 @@
 # FoodSource
 
-B2B food supplier discovery for restaurants and procurement teams. This repository currently contains the application foundation: Next.js, the dashboard shell, Russian and English, and the PostgreSQL schema.
+B2B food supplier discovery for restaurants and procurement teams. This repository currently contains the application foundation: Next.js, a landing-page shell, Russian and English, and the PostgreSQL schema.
 
 Supplier search, profiles, comparison, and saved suppliers are not implemented yet.
 

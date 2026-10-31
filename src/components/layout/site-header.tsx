@@ -24,9 +24,17 @@ const headerLinks = navigation.filter((item) =>
 );
 
 export function SiteHeader() {
+  const pathname = usePathname();
+  return <HeaderBar pathname={pathname} />;
+}
+
+export function SiteHeaderFallback() {
+  return <HeaderBar pathname={null} />;
+}
+
+function HeaderBar({ pathname }: { pathname: string | null }) {
   const t = useTranslations("Header");
   const nav = useTranslations("Nav");
-  const pathname = usePathname();
 
   return (
     <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
@@ -39,7 +47,7 @@ export function SiteHeader() {
         </Link>
         <nav className="hidden items-center gap-1 md:flex" aria-label={nav("label")}>
           {headerLinks.map((item) => {
-            const active = isNavItemActive(pathname, item.href);
+            const active = pathname != null && isNavItemActive(pathname, item.href);
 
             return (
               <Link

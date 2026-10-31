@@ -2,20 +2,28 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { usePathname, useRouter } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
+
+function pathnameWithoutLocale(pathname: string) {
+  if (pathname === "/en" || pathname.startsWith("/en/")) {
+    return pathname.slice(3) || "/";
+  }
+
+  return pathname || "/";
+}
 
 export function LanguageSwitcher() {
   const t = useTranslations("Header");
   const locale = useLocale();
   const router = useRouter();
-  const pathname = usePathname();
 
   function switchLocale(nextLocale: AppLocale) {
     if (nextLocale === locale) {
       return;
     }
 
+    const pathname = pathnameWithoutLocale(window.location.pathname);
     const query = window.location.search.replace(/^\?/, "");
     const href = query ? `${pathname}?${query}` : pathname;
     router.replace(href, { locale: nextLocale });

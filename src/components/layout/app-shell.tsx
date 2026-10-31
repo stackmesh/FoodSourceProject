@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
+import { Suspense } from "react";
 import { SiteFooter } from "./site-footer";
-import { SiteHeader } from "./site-header";
+import { SiteHeader, SiteHeaderFallback } from "./site-header";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const t = await getTranslations("Shell");
@@ -16,7 +17,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       <p className="border-b border-primary/15 bg-primary/10 px-4 py-2 text-center text-xs leading-5 text-foreground">
         {t("demoBanner")}
       </p>
-      <SiteHeader />
+      <Suspense fallback={<SiteHeaderFallback />}>
+        <SiteHeader />
+      </Suspense>
       <main id="content" className="flex-1">
         {children}
       </main>

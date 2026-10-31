@@ -22,7 +22,19 @@ export async function generateMetadata({
   return { title: t("title") };
 }
 
-export default async function SupplierDetailPage({
+export default function SupplierDetailPage({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}) {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8"><PanelSkeleton /></div>}>
+      <Detail params={params} />
+    </Suspense>
+  );
+}
+
+async function Detail({
   params,
 }: {
   params: Promise<{ locale: string; slug: string }>;
@@ -30,15 +42,6 @@ export default async function SupplierDetailPage({
   const { locale: localeParam, slug } = await params;
   const locale = assertLocale(localeParam);
   setRequestLocale(locale);
-
-  return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8"><PanelSkeleton /></div>}>
-      <Detail locale={locale} slug={slug} />
-    </Suspense>
-  );
-}
-
-async function Detail({ locale, slug }: { locale: string; slug: string }) {
   const t = await getTranslations("Profile");
   const loaded = await loadDetail(slug);
 

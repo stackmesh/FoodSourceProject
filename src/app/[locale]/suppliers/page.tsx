@@ -91,6 +91,12 @@ async function DiscoveryResults({
                 comparing={comparing.has(supplier.slug)}
                 score={score}
                 showScore={result.showScore}
+                context={{
+                  query: query.q,
+                  category: query.category,
+                  city: query.city,
+                  region: query.region,
+                }}
               />
             ))}
           </div>

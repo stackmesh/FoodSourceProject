@@ -4,9 +4,9 @@ import {
   hasRankingContext,
   type DiscoveryQuery,
 } from "@/lib/discovery-query";
-import { scoreSupplier } from "@/lib/scoring";
 import { getPrisma } from "@/lib/prisma";
-import { querySupplierPage } from "@/server/supplier-search";
+import { matchSuppliers } from "@/server/matching";
+import { queryMatchCohort, querySupplierPage } from "@/server/supplier-search";
 import {
   DataError,
   type CatalogSupplier,
@@ -171,7 +171,7 @@ export async function getSuppliersBySlugs(slugs: string[]) {
 
 export async function searchSuppliers(query: DiscoveryQuery) {
   try {
-    const page = await querySupplierPage(query);
+    const [page, cohort] = await Promise.all([querySupplierPage(query), queryMatchCohort(query)]);
     const rows = page.ids.length
       ? await getPrisma().supplier.findMany({
           where: { id: { in: page.ids } },
@@ -181,19 +181,25 @@ export async function searchSuppliers(query: DiscoveryQuery) {
     const byId = new Map(
       rows.map((row) => [row.id, mapSupplier(row as Parameters<typeof mapSupplier>[0])]),
     );
+    const suppliers = page.ids.flatMap((id) => {
+      const supplier = byId.get(id);
+      return supplier ? [supplier] : [];
+    });
+    const scores = new Map(
+      matchSuppliers(suppliers, {
+        query: query.q,
+        category: query.category,
+        city: query.city,
+        region: query.region,
+      }, cohort).map((report) => [report.supplierId, report.score]),
+    );
     const facets = await loadFacets();
 
     return {
-      items: page.ids.flatMap((id) => {
-        const supplier = byId.get(id);
-        if (!supplier) return [];
-        return [
-          {
-            supplier,
-            score: scoreSupplier(supplier, query, page.priceRange, page.moqRange),
-          },
-        ];
-      }),
+      items: suppliers.map((supplier) => ({
+        supplier,
+        score: scores.get(supplier.id) ?? null,
+      })),
       total: page.total,
       page: page.page,
       pages: page.pages,

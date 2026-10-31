@@ -12,13 +12,15 @@ export async function SupplierCard({
   comparing,
   score,
   showScore,
+  context,
 }: {
   supplier: CatalogSupplier;
   locale: string;
   saved: boolean;
   comparing: boolean;
-  score: number;
+  score: number | null;
   showScore: boolean;
+  context?: { query: string; category: string; city: string; region: string };
 }) {
   const t = await getTranslations("Catalog");
   const categoryLabel = locale === "en" ? "categoryNameEn" : "categoryNameRu";
@@ -88,7 +90,7 @@ export async function SupplierCard({
       )}
       {showScore ? (
         <p className="mt-3 text-xs font-medium text-primary" title={t("scoreHint")}>
-          {t("score", { score })}
+          {score == null ? t("scoreUnavailable") : t("score", { score })}
         </p>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -99,7 +101,7 @@ export async function SupplierCard({
           {t("view")}
         </Link>
         <FavoriteButton supplierId={supplier.id} saved={saved} />
-        <CompareButton slug={supplier.slug} active={comparing} />
+        <CompareButton slug={supplier.slug} active={comparing} context={context} />
       </div>
     </article>
   );

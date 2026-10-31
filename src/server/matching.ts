@@ -1,0 +1,546 @@
+export const defaultMatchWeights = {
+  product: 0.35,
+  geography: 0.25,
+  price: 0.15,
+  moq: 0.1,
+  certification: 0.1,
+  delivery: 0.05,
+} as const;
+
+export type MatchWeightKey = keyof typeof defaultMatchWeights;
+
+export type MatchWeights = Record<MatchWeightKey, number>;
+
+export type MatchContext = {
+  query?: string;
+  category?: string;
+  city?: string;
+  region?: string;
+  weights?: Partial<MatchWeights>;
+};
+
+export type MatchProduct = {
+  name: string;
+  categorySlug: string;
+  categoryNameRu: string;
+  categoryNameEn: string;
+  price: number | null;
+  currency: string;
+  moq: number | null;
+  unit: string | null;
+  deliveryNotes: string | null;
+};
+
+export type MatchCertification = {
+  status: "VERIFIED" | "UNVERIFIED" | "EXPIRED";
+};
+
+export type MatchSupplier = {
+  id: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  dataType: "REAL" | "DEMO";
+  verificationStatus: "VERIFIED" | "PARTIALLY_VERIFIED" | "UNVERIFIED" | "EXPIRED";
+  products: MatchProduct[];
+  certifications: MatchCertification[];
+};
+
+export type PriceCohortGroup = {
+  unit: string | null;
+  currency: string;
+  suppliers: number;
+  min: number;
+  max: number;
+};
+
+export type QuantityCohortGroup = {
+  unit: string | null;
+  suppliers: number;
+  min: number;
+  max: number;
+};
+
+export type MatchCohort = {
+  prices?: PriceCohortGroup[];
+  moqs?: QuantityCohortGroup[];
+};
+
+export type FactorStatus = "scored" | "missing" | "not_comparable" | "not_requested";
+
+export type MatchReason =
+  | "category_match"
+  | "category_miss"
+  | "product_text"
+  | "name_only"
+  | "no_product_match"
+  | "shared_category"
+  | "different_categories"
+  | "no_shared_category"
+  | "location_match"
+  | "partial_location"
+  | "location_miss"
+  | "location_text"
+  | "location_unavailable"
+  | "no_location_requested"
+  | "lower_is_better"
+  | "price_unavailable"
+  | "moq_unavailable"
+  | "different_unit"
+  | "no_peer_value"
+  | "verified"
+  | "unverified_not_counted"
+  | "expired_not_verified"
+  | "no_certification_records"
+  | "demonstration_not_evidence"
+  | "stated_for_requested_place_unverified"
+  | "stated_but_place_not_mentioned"
+  | "delivery_not_stated"
+  | "delivery_not_requested";
+
+export type MatchFactor = {
+  key: MatchWeightKey;
+  weight: number;
+  status: FactorStatus;
+  /** 0–1 when this factor is scored. Null when it is excluded. */
+  ratio: number | null;
+  /** Points toward the displayed 0–100 score. Null when this factor is excluded. */
+  points: number | null;
+  reason: MatchReason;
+};
+
+export type OfferComparison = {
+  amount: number | null;
+  unit: string | null;
+  currency: string | null;
+  lowest: boolean;
+  missing: boolean;
+  mixedUnits: boolean;
+};
+
+export type MatchReport = {
+  supplierId: string;
+  /** Null when no weighted factor could be scored. */
+  score: number | null;
+  /** Share of the configured weight that was actually scored, from 0 to 1. */
+  coverage: number;
+  factors: MatchFactor[];
+  price: OfferComparison;
+  moq: OfferComparison;
+  verifiedCertifications: number;
+  unverifiedCertifications: number;
+  deliveryStated: boolean;
+  /** Always false: a stated delivery area is not a verified service promise. */
+  deliveryVerified: boolean;
+  countsAsVerifiedSupplier: boolean;
+  /** Always true: the highest score does not mean this is the best supplier. */
+  doesNotGuaranteeBestSupplier: boolean;
+};
+
+const weightKeys = Object.keys(defaultMatchWeights) as MatchWeightKey[];
+
+export function resolveMatchWeights(override?: Partial<MatchWeights>): MatchWeights {
+  const merged = { ...defaultMatchWeights, ...override };
+  for (const key of weightKeys) {
+    const value = merged[key];
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error("Match weights must be non-negative finite numbers.");
+    }
+  }
+  const sum = weightKeys.reduce((total, key) => total + merged[key], 0);
+  if (sum === 0) {
+    throw new Error("Match weights must not all be zero.");
+  }
+  return {
+    product: merged.product / sum,
+    geography: merged.geography / sum,
+    price: merged.price / sum,
+    moq: merged.moq / sum,
+    certification: merged.certification / sum,
+    delivery: merged.delivery / sum,
+  };
+}
+
+export function matchSuppliers(
+  suppliers: MatchSupplier[],
+  context: MatchContext = {},
+  cohort?: MatchCohort,
+): MatchReport[] {
+  const weights = resolveMatchWeights(context.weights);
+  const priceGroup = chooseGroup(cohort?.prices ?? priceGroups(suppliers), weights.price);
+  const moqGroup = chooseGroup(cohort?.moqs ?? moqGroups(suppliers), weights.moq);
+  const sharedCategories = sharedCategorySlugs(suppliers);
+  const drafts = suppliers.map((supplier) => {
+    const factors = [
+      productFactor(supplier, context, sharedCategories, weights.product),
+      geographyFactor(supplier, context, weights.geography),
+      numericFactor("price", supplier, priceGroup, weights.price, "price_unavailable"),
+      numericFactor("moq", supplier, moqGroup, weights.moq, "moq_unavailable"),
+      certificationFactor(supplier, weights.certification),
+      deliveryFactor(supplier, context, weights.delivery),
+    ];
+    const active = factors.filter((factor) => factor.status === "scored" && factor.ratio != null && factor.weight > 0);
+    const weightSum = active.reduce((total, factor) => total + factor.weight, 0);
+    const score = weightSum === 0 ? null : Math.round((active.reduce((total, factor) => total + (factor.ratio ?? 0) * factor.weight, 0) / weightSum) * 100);
+    const withPoints = assignPoints(factors, score, weightSum);
+    return { supplier, factors: withPoints, score, coverage: weightSum };
+  });
+
+  return drafts.map(({ supplier, factors, score, coverage }) => {
+    const price = offerComparison(supplier, priceGroup, "price");
+    const moq = offerComparison(supplier, moqGroup, "moq");
+    const verifiedCertifications =
+      supplier.dataType === "DEMO" ? 0 : supplier.certifications.filter((item) => item.status === "VERIFIED").length;
+    return {
+      supplierId: supplier.id,
+      score,
+      coverage,
+      factors,
+      price: { ...price, lowest: false },
+      moq: { ...moq, lowest: false },
+      verifiedCertifications,
+      unverifiedCertifications: supplier.certifications.length - (supplier.dataType === "DEMO" ? 0 : verifiedCertifications),
+      deliveryStated: supplier.products.some((product) => Boolean(product.deliveryNotes)),
+      deliveryVerified: false as const,
+      countsAsVerifiedSupplier: supplier.dataType === "REAL" && supplier.verificationStatus === "VERIFIED",
+      doesNotGuaranteeBestSupplier: true,
+    };
+  }).map((report, _, reports) => ({
+    ...report,
+    price: { ...report.price, lowest: isLowest(report.price, reports.map((item) => item.price)) },
+    moq: { ...report.moq, lowest: isLowest(report.moq, reports.map((item) => item.moq)) },
+  }));
+}
+
+function productFactor(
+  supplier: MatchSupplier,
+  context: MatchContext,
+  sharedCategories: Set<string>,
+  weight: number,
+): MatchFactor {
+  if (context.category) {
+    const hit = supplier.products.some((product) => product.categorySlug === context.category);
+    return factor("product", weight, "scored", hit ? 1 : 0, hit ? "category_match" : "category_miss");
+  }
+
+  const needle = fold(context.query ?? "");
+  if (needle) {
+    const productHit = supplier.products.some((product) =>
+      fold([product.name, product.categoryNameRu, product.categoryNameEn].join(" ")).includes(needle),
+    );
+    if (productHit) return factor("product", weight, "scored", 1, "product_text");
+    if (fold(supplier.name).includes(needle)) return factor("product", weight, "scored", 0.55, "name_only");
+    return factor("product", weight, "scored", 0, "no_product_match");
+  }
+
+  if (sharedCategories.size === 0) {
+    return factor("product", weight, "not_comparable", null, "no_shared_category");
+  }
+  const hit = supplier.products.some((product) => sharedCategories.has(product.categorySlug));
+  return factor("product", weight, "scored", hit ? 1 : 0, hit ? "shared_category" : "different_categories");
+}
+
+function geographyFactor(supplier: MatchSupplier, context: MatchContext, weight: number): MatchFactor {
+  const city = fold(supplier.city ?? "");
+  const region = fold(supplier.region ?? "");
+  if (context.city || context.region) {
+    const cityRequested = Boolean(context.city);
+    const regionRequested = Boolean(context.region);
+    const cityOk = cityRequested && city === fold(context.city ?? "");
+    const regionOk = regionRequested && region === fold(context.region ?? "");
+    if (cityRequested && !city && regionRequested && regionOk) {
+      return factor("geography", weight, "scored", 0.6, "partial_location");
+    }
+    if ((cityRequested && !city) || (regionRequested && !region)) {
+      return factor("geography", weight, "missing", null, "location_unavailable");
+    }
+    if (cityRequested && regionRequested) {
+      if (cityOk && regionOk) return factor("geography", weight, "scored", 1, "location_match");
+      if (cityOk || regionOk) return factor("geography", weight, "scored", 0.6, "partial_location");
+      return factor("geography", weight, "scored", 0, "location_miss");
+    }
+    if (cityRequested) return factor("geography", weight, "scored", cityOk ? 1 : 0, cityOk ? "location_match" : "location_miss");
+    return factor("geography", weight, "scored", regionOk ? 1 : 0, regionOk ? "location_match" : "location_miss");
+  }
+
+  const needle = fold(context.query ?? "");
+  if (needle && ((city && city.includes(needle)) || (region && region.includes(needle)))) {
+    return factor("geography", weight, "scored", 1, "location_text");
+  }
+  return factor("geography", weight, "not_requested", null, "no_location_requested");
+}
+
+function certificationFactor(supplier: MatchSupplier, weight: number): MatchFactor {
+  if (supplier.dataType === "DEMO") {
+    return factor("certification", weight, "missing", null, "demonstration_not_evidence");
+  }
+  const verified = supplier.certifications.filter((item) => item.status === "VERIFIED");
+  if (verified.length > 0) return factor("certification", weight, "scored", 1, "verified");
+  if (supplier.certifications.length === 0) {
+    return factor("certification", weight, "missing", null, "no_certification_records");
+  }
+  const onlyExpired = supplier.certifications.every((item) => item.status === "EXPIRED");
+  return factor(
+    "certification",
+    weight,
+    "scored",
+    0,
+    onlyExpired ? "expired_not_verified" : "unverified_not_counted",
+  );
+}
+
+function deliveryFactor(supplier: MatchSupplier, context: MatchContext, weight: number): MatchFactor {
+  const notes = supplier.products.flatMap((product) => (product.deliveryNotes ? [product.deliveryNotes] : []));
+  if (notes.length === 0) return factor("delivery", weight, "missing", null, "delivery_not_stated");
+
+  const places = [context.city, context.region].filter((value): value is string => Boolean(value));
+  if (places.length === 0) return factor("delivery", weight, "not_requested", null, "delivery_not_requested");
+
+  const haystack = fold(notes.join(" "));
+  const mentioned = places.some((place) => haystack.includes(fold(place)));
+  return factor(
+    "delivery",
+    weight,
+    "scored",
+    mentioned ? 1 : 0,
+    mentioned ? "stated_for_requested_place_unverified" : "stated_but_place_not_mentioned",
+  );
+}
+
+type NumericGroup = { unit: string | null; currency: string | null; supplierIds: Set<string>; min: number; max: number };
+
+function numericFactor(
+  key: "price" | "moq",
+  supplier: MatchSupplier,
+  group: NumericGroup | null,
+  weight: number,
+  missingReason: "price_unavailable" | "moq_unavailable",
+): MatchFactor {
+  const offers = key === "price" ? pricedOffers(supplier) : moqOffers(supplier);
+  if (!group) {
+    return factor(key, weight, offers.length ? "not_comparable" : "missing", null, offers.length ? "no_peer_value" : missingReason);
+  }
+  const own = offers.filter((offer) => offer.unit === group.unit && (key !== "price" || offer.currency === group.currency));
+  if (own.length === 0) {
+    return factor(key, weight, offers.length ? "not_comparable" : "missing", null, offers.length ? "different_unit" : missingReason);
+  }
+  const amount = Math.min(...own.map((offer) => offer.amount));
+  return factor(key, weight, "scored", lowerIsBetter(amount, group.min, group.max), "lower_is_better");
+}
+
+function offerComparison(supplier: MatchSupplier, group: NumericGroup | null, key: "price" | "moq"): OfferComparison {
+  const offers = key === "price" ? pricedOffers(supplier) : moqOffers(supplier);
+  const own = group
+    ? offers.filter((offer) => offer.unit === group.unit && (key !== "price" || offer.currency === group.currency))
+    : [];
+  if (own.length > 0 && group) {
+    return {
+      amount: Math.min(...own.map((offer) => offer.amount)),
+      unit: group.unit,
+      currency: key === "price" ? group.currency : null,
+      lowest: false,
+      missing: false,
+      mixedUnits: false,
+    };
+  }
+  const display = offers.reduce<(typeof offers)[number] | null>((lowest, offer) => {
+    if (!lowest || offer.amount < lowest.amount) return offer;
+    return lowest;
+  }, null);
+  return {
+    amount: display?.amount ?? null,
+    unit: display?.unit ?? null,
+    currency: key === "price" ? display?.currency ?? null : null,
+    lowest: false,
+    missing: display == null,
+    mixedUnits: display != null,
+  };
+}
+
+function assignPoints(factors: MatchFactor[], score: number | null, weightSum: number) {
+  if (score == null || weightSum === 0) {
+    return factors.map((item) => ({ ...item, points: null }));
+  }
+  const exact = factors.map((item) =>
+    item.status === "scored" && item.ratio != null && item.weight > 0
+      ? ((item.ratio * item.weight) / weightSum) * 100
+      : null,
+  );
+  const floors = exact.map((value) => (value == null ? null : Math.floor(value)));
+  let remainder = score - floors.reduce<number>((total, value) => total + (value ?? 0), 0);
+  const order = exact
+    .map((value, index) => ({ index, fraction: value == null ? -1 : value - Math.floor(value) }))
+    .filter((item) => item.fraction >= 0)
+    .sort((left, right) => right.fraction - left.fraction || left.index - right.index);
+  let cursor = 0;
+  while (remainder > 0 && order.length > 0 && cursor < 100) {
+    const item = order[cursor % order.length];
+    const current = floors[item.index];
+    if (current != null) {
+      floors[item.index] = current + 1;
+      remainder -= 1;
+    }
+    cursor += 1;
+  }
+  return factors.map((item, index) => ({ ...item, points: floors[index] }));
+}
+
+export function cohortFromProductRows(
+  rows: Array<{ supplierId: string; unit: string | null; currency: string | null; price: number | null; moq: number | null }>,
+): MatchCohort {
+  return {
+    prices: groupsFromOffers(
+      rows.flatMap((row) =>
+        row.price == null
+          ? []
+          : [{ supplierId: row.supplierId, unit: normalizeUnit(row.unit), currency: row.currency || "RUB", amount: row.price }],
+      ),
+    ),
+    moqs: groupsFromOffers(
+      rows.flatMap((row) =>
+        row.moq == null
+          ? []
+          : [{ supplierId: row.supplierId, unit: normalizeUnit(row.unit), currency: null, amount: row.moq }],
+      ),
+    ),
+  };
+}
+
+export function sqlUnitKey(columnSql: string) {
+  const normalized = `translate(lower(replace(replace(coalesce(${columnSql}, ''), ' ', ''), '.', '')), 'ё', 'е')`;
+  const whens = Object.entries(unitAliases)
+    .map(([from, to]) => `WHEN '${from.replaceAll("'", "''")}' THEN '${to}'`)
+    .join(" ");
+  return `CASE ${normalized} ${whens} ELSE ${normalized} END`;
+}
+
+function isLowest(offer: OfferComparison, offers: OfferComparison[]) {
+  if (offer.missing || offer.mixedUnits || offer.amount == null) return false;
+  const comparable = offers.filter((item) => !item.missing && !item.mixedUnits && item.amount != null);
+  if (comparable.length < 2) return false;
+  const lowest = Math.min(...comparable.map((item) => item.amount ?? 0));
+  return offer.amount === lowest && comparable.some((item) => (item.amount ?? 0) > lowest);
+}
+
+function chooseGroup(
+  groups: Array<{ unit: string | null; currency?: string; suppliers: number; min: number; max: number }>,
+  weight: number,
+): NumericGroup | null {
+  if (weight === 0) return null;
+  const merged = new Map<string, NumericGroup & { suppliers: number }>();
+  for (const group of groups) {
+    if (group.suppliers < 1 || !Number.isFinite(group.min) || !Number.isFinite(group.max)) continue;
+    const unit = normalizeUnit(group.unit);
+    const currency = group.currency ?? null;
+    const key = `${currency ?? ""}:${unit ?? ""}`;
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, { unit, currency, supplierIds: new Set(), suppliers: group.suppliers, min: group.min, max: group.max });
+      continue;
+    }
+    current.suppliers += group.suppliers;
+    current.min = Math.min(current.min, group.min);
+    current.max = Math.max(current.max, group.max);
+  }
+  const eligible = [...merged.values()].filter((group) => group.suppliers >= 2);
+  if (eligible.length === 0) return null;
+  eligible.sort((left, right) => right.suppliers - left.suppliers || right.max - right.min - (left.max - left.min));
+  const [best, next] = eligible;
+  if (next && next.suppliers === best.suppliers) return null;
+  return { unit: best.unit, currency: best.currency, supplierIds: new Set(Array.from({ length: best.suppliers }, (_, index) => String(index))), min: best.min, max: best.max };
+}
+
+function priceGroups(suppliers: MatchSupplier[]) {
+  return groupsFromOffers(suppliers.flatMap((supplier) => pricedOffers(supplier).map((offer) => ({ ...offer, supplierId: supplier.id }))));
+}
+
+function moqGroups(suppliers: MatchSupplier[]) {
+  return groupsFromOffers(suppliers.flatMap((supplier) => moqOffers(supplier).map((offer) => ({ ...offer, supplierId: supplier.id }))));
+}
+
+function groupsFromOffers(offers: Array<{ supplierId: string; unit: string | null; currency: string | null; amount: number }>) {
+  const grouped = new Map<string, { unit: string | null; currency: string; suppliers: Set<string>; min: number; max: number }>();
+  for (const offer of offers) {
+    const key = `${offer.currency ?? ""}:${offer.unit ?? ""}`;
+    const current = grouped.get(key);
+    if (!current) {
+      grouped.set(key, { unit: offer.unit, currency: offer.currency ?? "", suppliers: new Set([offer.supplierId]), min: offer.amount, max: offer.amount });
+      continue;
+    }
+    current.suppliers.add(offer.supplierId);
+    current.min = Math.min(current.min, offer.amount);
+    current.max = Math.max(current.max, offer.amount);
+  }
+  return [...grouped.values()].map((group) => ({
+    unit: group.unit,
+    currency: group.currency,
+    suppliers: group.suppliers.size,
+    min: group.min,
+    max: group.max,
+  }));
+}
+
+function pricedOffers(supplier: MatchSupplier) {
+  return supplier.products.flatMap((product) =>
+    product.price == null ? [] : [{ unit: normalizeUnit(product.unit), currency: product.currency || "RUB", amount: product.price }],
+  );
+}
+
+function moqOffers(supplier: MatchSupplier) {
+  return supplier.products.flatMap((product) =>
+    product.moq == null ? [] : [{ unit: normalizeUnit(product.unit), currency: null, amount: product.moq }],
+  );
+}
+
+function sharedCategorySlugs(suppliers: MatchSupplier[]) {
+  const counts = new Map<string, number>();
+  for (const supplier of suppliers) {
+    for (const slug of new Set(supplier.products.map((product) => product.categorySlug))) {
+      counts.set(slug, (counts.get(slug) ?? 0) + 1);
+    }
+  }
+  return new Set([...counts.entries()].filter(([, count]) => count >= 2).map(([slug]) => slug));
+}
+
+function lowerIsBetter(value: number, min: number, max: number) {
+  if (max === min) return 1;
+  return Math.min(1, Math.max(0, 1 - (value - min) / (max - min)));
+}
+
+function factor(
+  key: MatchWeightKey,
+  weight: number,
+  status: FactorStatus,
+  ratio: number | null,
+  reason: MatchReason,
+): MatchFactor {
+  return { key, weight, status, ratio, points: null, reason };
+}
+
+function fold(value: string) {
+  return value.toLocaleLowerCase("ru").replaceAll("ё", "е").replace(/[%_\\]/g, "");
+}
+
+export const unitAliases: Record<string, string> = {
+  кг: "kg",
+  kg: "kg",
+  килограмм: "kg",
+  л: "l",
+  литр: "l",
+  литра: "l",
+  шт: "pcs",
+  штука: "pcs",
+  штук: "pcs",
+  упак: "pack",
+  упаковка: "pack",
+};
+
+export function normalizeComparableUnit(unit: string | null) {
+  return normalizeUnit(unit);
+}
+
+function normalizeUnit(unit: string | null) {
+  if (unit == null || unit.trim() === "") return null;
+  const folded = fold(unit).replace(/\./g, "").replace(/\s+/g, "");
+  return unitAliases[folded] ?? folded;
+}

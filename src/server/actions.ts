@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { demoWorkspaceKey } from "@/config/site";
-import { compareCookieName, compareLimit, parseCompareSlugs } from "@/lib/comparison";
+import {
+  compareCookieName,
+  compareLimit,
+  matchContextCookieName,
+  parseCompareSlugs,
+  parseMatchContext,
+} from "@/lib/comparison";
 import { getPrisma } from "@/lib/prisma";
 
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
@@ -37,14 +43,30 @@ async function readCompareCookie() {
   return parseCompareSlugs(jar.get(compareCookieName)?.value);
 }
 
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 180,
+};
+
 async function writeCompareCookie(slugs: string[]) {
   const jar = await cookies();
-  jar.set(compareCookieName, slugs.join(","), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 180,
-  });
+  jar.set(compareCookieName, slugs.join(","), cookieOptions);
+}
+
+async function rememberMatchContext(formData: FormData) {
+  if (formData.get("rememberContext") !== "1") return;
+  const context = parseMatchContext(
+    JSON.stringify({
+      query: String(formData.get("q") ?? ""),
+      category: String(formData.get("category") ?? ""),
+      city: String(formData.get("city") ?? ""),
+      region: String(formData.get("region") ?? ""),
+    }),
+  );
+  const jar = await cookies();
+  jar.set(matchContextCookieName, JSON.stringify(context), cookieOptions);
 }
 
 export async function toggleFavorite(
@@ -108,6 +130,8 @@ export async function addToComparison(
 
   const current = await readCompareCookie();
   if (current.includes(supplier.slug)) {
+    await rememberMatchContext(formData);
+    refresh();
     return { ok: true, comparing: true };
   }
   if (current.length >= compareLimit) {
@@ -115,6 +139,7 @@ export async function addToComparison(
   }
 
   await writeCompareCookie([...current, supplier.slug]);
+  await rememberMatchContext(formData);
   refresh();
   return { ok: true, comparing: true };
 }

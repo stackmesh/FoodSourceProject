@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { EmptyState, ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
 import { CompareView } from "@/components/catalog/compare-view";
 import { assertLocale } from "@/i18n/locale";
-import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
-import { getSuppliersBySlugs } from "@/server/catalog";
+import { compareCookieName, matchContextCookieName, parseCompareSlugs, parseMatchContext } from "@/lib/comparison";
+import { getSuppliersBySlugs, getWorkspace } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
 export async function generateMetadata({
@@ -39,13 +39,13 @@ export default async function ComparePage({
 
 async function Comparison({ locale }: { locale: string }) {
   const t = await getTranslations("Compare");
-  const suppliers = await loadComparison();
+  const loaded = await loadComparison();
 
-  if (!suppliers) {
+  if (!loaded) {
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
   }
 
-  if (!suppliers.length) {
+  if (!loaded.suppliers.length) {
     return (
       <EmptyState
         title={t("emptyTitle")}
@@ -56,14 +56,32 @@ async function Comparison({ locale }: { locale: string }) {
     );
   }
 
-  return <CompareView suppliers={suppliers} locale={locale} />;
+  return (
+    <CompareView
+      suppliers={loaded.suppliers}
+      workspace={loaded.workspace}
+      locale={locale}
+      context={loaded.context}
+    />
+  );
 }
 
 async function loadComparison() {
   try {
     const jar = await cookies();
     const slugs = parseCompareSlugs(jar.get(compareCookieName)?.value);
-    return await getSuppliersBySlugs(slugs);
+    const stored = parseMatchContext(jar.get(matchContextCookieName)?.value);
+    const [suppliers, workspace] = await Promise.all([getSuppliersBySlugs(slugs), getWorkspace()]);
+    return {
+      suppliers,
+      workspace,
+      context: {
+        query: stored.query || undefined,
+        category: stored.category || undefined,
+        city: stored.city || undefined,
+        region: stored.region || undefined,
+      },
+    };
   } catch (error) {
     if (!(error instanceof DataError)) throw error;
     return null;

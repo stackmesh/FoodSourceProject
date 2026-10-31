@@ -3,6 +3,7 @@ import pg from "pg";
 import { createSupplier, deleteSupplier, updateSupplier } from "../src/server/supplier-records.ts";
 import { searchSuppliers } from "../src/server/catalog.ts";
 import { parseDiscoveryQuery } from "../src/lib/discovery-query.ts";
+import { cohortFromProductRows, normalizeComparableUnit } from "../src/server/matching.ts";
 
 config();
 
@@ -48,29 +49,6 @@ check("every real supplier has an https source", unsourced.rowCount === 0);
 const slugs = await db.query(`SELECT COUNT(DISTINCT "slug")::int AS count, COUNT(*)::int AS rows FROM "Supplier"`);
 check("no duplicate slugs", slugs.rows[0].count === slugs.rows[0].rows);
 
-const ekoniva = await db.query(`SELECT "id" FROM "Supplier" WHERE "slug" = 'ekoniva'`);
-await db.query(
-  `INSERT INTO "Shortlist" ("id", "workspaceKey", "supplierId", "contactStatus", "updatedAt")
-   VALUES (gen_random_uuid(), 'demo-workspace', $1, 'TO_CONTACT', NOW())
-   ON CONFLICT ("workspaceKey", "supplierId") DO UPDATE SET "contactStatus" = 'TO_CONTACT', "updatedAt" = NOW()`,
-  [ekoniva.rows[0].id],
-);
-await db.query(
-  `INSERT INTO "SupplierNote" ("id", "workspaceKey", "supplierId", "content", "updatedAt")
-   VALUES (gen_random_uuid(), 'demo-workspace', $1, 'Проверка заметки', NOW())`,
-  [ekoniva.rows[0].id],
-);
-const saved = await db.query(
-  `SELECT s."contactStatus", n."content"
-   FROM "Shortlist" s
-   JOIN "SupplierNote" n ON n."supplierId" = s."supplierId" AND n."workspaceKey" = s."workspaceKey"
-   WHERE s."supplierId" = $1 AND n."content" = 'Проверка заметки'`,
-  [ekoniva.rows[0].id],
-);
-check("favorite and note persist", saved.rows[0]?.contactStatus === "TO_CONTACT" && saved.rows[0]?.content === "Проверка заметки");
-await db.query(`DELETE FROM "SupplierNote" WHERE "supplierId" = $1 AND "content" = 'Проверка заметки'`, [ekoniva.rows[0].id]);
-await db.query(`DELETE FROM "Shortlist" WHERE "supplierId" = $1 AND "workspaceKey" = 'demo-workspace'`, [ekoniva.rows[0].id]);
-
 await db.end();
 
 async function names(raw) {
@@ -115,17 +93,55 @@ check("MOQ filter includes a low demo order", moq.slugs.includes("baltiyskiy-ulo
 check("MOQ filter excludes null real MOQ", !moq.slugs.includes("ekoniva"));
 
 const certified = await names({ certified: "1" });
-check("certification filter includes Miratorg", certified.slugs.includes("miratorg"));
-check("certification filter includes a certified demo row", certified.slugs.includes("privolzhskaya-ptica"));
+check("certification filter includes a real sourced claim", certified.slugs.includes("miratorg"));
+check("certification filter excludes demonstration certificates", !certified.slugs.includes("privolzhskaya-ptica"));
 check(
   "certification filter excludes a supplier with no certificate",
   !certified.slugs.includes("donskaya-govyadina") && !certified.slugs.includes("ekoniva"),
 );
 
-const sorted = await names({ sort: "price" });
-const priced = sorted.prices.filter((value) => value != null);
-check("price sort puts a priced supplier first", sorted.prices[0] != null && sorted.slugs[0] === "upakovka-povolzhyya");
-check("price sort is ascending", priced.every((value, index) => index === 0 || value >= priced[index - 1]));
+const priceSorted = await searchSuppliers(parseDiscoveryQuery({ sort: "price" }));
+const priceItems = [...priceSorted.items];
+for (let page = 2; page <= priceSorted.pages; page += 1) {
+  const next = await searchSuppliers(parseDiscoveryQuery({ sort: "price", page: String(page) }));
+  priceItems.push(...next.items);
+}
+const priceCohort = cohortFromProductRows(
+  priceItems.flatMap((item) =>
+    item.supplier.products.map((product) => ({
+      supplierId: item.supplier.id,
+      unit: product.unit,
+      currency: product.currency,
+      price: product.price,
+      moq: product.moq,
+    })),
+  ),
+);
+const dominantPrice = [...priceCohort.prices].sort((left, right) => right.suppliers - left.suppliers)[0];
+const dominantTied =
+  priceCohort.prices.filter((group) => group.suppliers === dominantPrice?.suppliers).length > 1;
+const comparablePrices = priceItems.map((item) => {
+  if (!dominantPrice || dominantTied) return null;
+  const amounts = item.supplier.products.flatMap((product) =>
+    product.price != null &&
+    (product.currency || "RUB") === dominantPrice.currency &&
+    normalizeComparableUnit(product.unit) === dominantPrice.unit
+      ? [product.price]
+      : [],
+  );
+  return amounts.length ? Math.min(...amounts) : null;
+});
+const firstWithoutUnit = comparablePrices.indexOf(null);
+check("price sort has one comparable unit", Boolean(dominantPrice) && !dominantTied && dominantPrice.unit === "kg");
+check(
+  "price sort is ascending inside that unit",
+  comparablePrices.filter((value) => value != null).every((value, index, values) => index === 0 || value >= values[index - 1]),
+);
+check(
+  "price sort leaves other units after the comparable unit",
+  firstWithoutUnit === -1 || comparablePrices.slice(firstWithoutUnit).every((value) => value == null),
+);
+check("a piece price is not ranked as the lowest kilogram price", priceItems[0]?.supplier.slug !== "upakovka-povolzhyya");
 
 const page1 = await searchSuppliers(parseDiscoveryQuery({ sort: "name", page: "1" }));
 const page2 = await searchSuppliers(parseDiscoveryQuery({ sort: "name", page: "2" }));

@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { foldSearchText, type DiscoveryQuery } from "@/lib/discovery-query";
 import { getPrisma } from "@/lib/prisma";
+import { cohortFromProductRows, sqlUnitKey } from "@/server/matching";
 
 export const discoveryPageSize = 9;
 
@@ -50,7 +51,11 @@ function whereSql(query: DiscoveryQuery, like: string) {
 
   if (query.certified) {
     filters.push(Prisma.sql`EXISTS (
-      SELECT 1 FROM "Certification" cert WHERE cert."supplierId" = s."id"
+      SELECT 1
+      FROM "Certification" cert
+      WHERE cert."supplierId" = s."id"
+        AND s."dataType" = 'REAL'
+        AND cert."status" IN ('VERIFIED', 'UNVERIFIED')
     )`);
   }
 
@@ -113,6 +118,8 @@ export async function querySupplierPage(query: DiscoveryQuery) {
   const pages = Math.max(1, Math.ceil(total / discoveryPageSize));
   const page = Math.min(query.page, pages);
   const offset = (page - 1) * discoveryPageSize;
+  const priceUnit = (await dominantComparableUnit(query, "price")) ?? "";
+  const moqUnit = (await dominantComparableUnit(query, "moq")) ?? "";
 
   const rows = total
     ? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -120,8 +127,20 @@ export async function querySupplierPage(query: DiscoveryQuery) {
         ${filteredFrom}
         WHERE ${where}
         ORDER BY
-          CASE WHEN ${query.sort} = 'price' THEN stats.min_price END ASC NULLS LAST,
-          CASE WHEN ${query.sort} = 'moq' THEN stats.min_moq END ASC NULLS LAST,
+          CASE WHEN ${query.sort} = 'price' AND ${priceUnit} <> '' THEN (
+            SELECT MIN(p."estimatedPrice")
+            FROM "SupplierProduct" p
+            WHERE p."supplierId" = s."id"
+              AND p."estimatedPrice" IS NOT NULL
+              AND ${Prisma.raw(sqlUnitKey(`p."unit"`))} = ${priceUnit}
+          ) END ASC NULLS LAST,
+          CASE WHEN ${query.sort} = 'moq' AND ${moqUnit} <> '' THEN (
+            SELECT MIN(p."minimumOrderQuantity")
+            FROM "SupplierProduct" p
+            WHERE p."supplierId" = s."id"
+              AND p."minimumOrderQuantity" IS NOT NULL
+              AND ${Prisma.raw(sqlUnitKey(`p."unit"`))} = ${moqUnit}
+          ) END ASC NULLS LAST,
           CASE
             WHEN ${query.sort} = 'relevance' AND ${foldedQuery} <> '' AND ${folded.name} LIKE ${like} THEN 0
             WHEN ${query.sort} = 'relevance' AND ${foldedQuery} <> '' THEN 1
@@ -140,6 +159,53 @@ export async function querySupplierPage(query: DiscoveryQuery) {
     priceRange: range(summary?.price_min, summary?.price_max),
     moqRange: range(summary?.moq_min, summary?.moq_max),
   };
+}
+
+export async function queryMatchCohort(query: DiscoveryQuery) {
+  const like = `%${foldSearchText(query.q)}%`;
+  const where = whereSql(query, like);
+  const rows = await getPrisma().$queryRaw<
+    Array<{ supplierId: string; unit: string | null; currency: string | null; price: string | null; moq: string | null }>
+  >(Prisma.sql`
+    SELECT p."supplierId" AS "supplierId",
+           p."unit" AS unit,
+           p."currency" AS currency,
+           p."estimatedPrice"::text AS price,
+           p."minimumOrderQuantity"::text AS moq
+    FROM "Supplier" s
+    JOIN "SupplierProduct" p ON p."supplierId" = s."id"
+    WHERE ${where}
+  `);
+
+  return cohortFromProductRows(
+    rows.map((row) => ({
+      supplierId: row.supplierId,
+      unit: row.unit,
+      currency: row.currency,
+      price: row.price == null ? null : Number(row.price),
+      moq: row.moq == null ? null : Number(row.moq),
+    })),
+  );
+}
+
+async function dominantComparableUnit(query: DiscoveryQuery, kind: "price" | "moq") {
+  if (query.sort !== kind) return null;
+  const like = `%${foldSearchText(query.q)}%`;
+  const where = whereSql(query, like);
+  const present = kind === "price" ? Prisma.sql`p."estimatedPrice" IS NOT NULL` : Prisma.sql`p."minimumOrderQuantity" IS NOT NULL`;
+  const rows = await getPrisma().$queryRaw<Array<{ unit_key: string | null; suppliers: number }>>(Prisma.sql`
+    SELECT ${Prisma.raw(sqlUnitKey(`p."unit"`))} AS unit_key,
+           COUNT(DISTINCT p."supplierId")::int AS suppliers
+    FROM "Supplier" s
+    JOIN "SupplierProduct" p ON p."supplierId" = s."id"
+    WHERE ${where} AND ${present}
+    GROUP BY 1
+    ORDER BY suppliers DESC, unit_key ASC
+  `);
+  const [best, next] = rows;
+  if (!best?.unit_key) return null;
+  if (next && next.suppliers === best.suppliers) return null;
+  return best.unit_key;
 }
 
 function range(min: string | null | undefined, max: string | null | undefined) {

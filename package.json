@@ -12,7 +12,8 @@
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "node prisma/seed.mjs"
+    "db:seed": "node prisma/seed.mjs",
+    "test:matching": "node --import ./scripts/register-loader.mjs scripts/run-matching-test.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

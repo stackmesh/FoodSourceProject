@@ -90,7 +90,15 @@ export function FavoriteButton({
   );
 }
 
-export function CompareButton({ slug, active }: { slug: string; active: boolean }) {
+export function CompareButton({
+  slug,
+  active,
+  context,
+}: {
+  slug: string;
+  active: boolean;
+  context?: { query: string; category: string; city: string; region: string };
+}) {
   const t = useTranslations("Catalog");
   const [state, action, pending] = useActionState(addToComparison, null);
   const comparing = state?.ok ? state.comparing : active;
@@ -106,6 +114,15 @@ export function CompareButton({ slug, active }: { slug: string; active: boolean 
   return (
     <form action={action}>
       <input type="hidden" name="slug" value={slug} />
+      {context ? (
+        <>
+          <input type="hidden" name="rememberContext" value="1" />
+          <input type="hidden" name="q" value={context.query} />
+          <input type="hidden" name="category" value={context.category} />
+          <input type="hidden" name="city" value={context.city} />
+          <input type="hidden" name="region" value={context.region} />
+        </>
+      ) : null}
       <Button type="submit" size="sm" disabled={pending}>
         {t("compare")}
       </Button>

@@ -198,6 +198,7 @@ export async function searchSuppliers(query: DiscoveryQuery) {
           page,
           pages,
           showScore: true,
+          comparable: null,
           facets,
         };
       }
@@ -213,6 +214,7 @@ export async function searchSuppliers(query: DiscoveryQuery) {
         page: page.page,
         pages: page.pages,
         showScore: true,
+        comparable: page.comparable,
         facets,
       };
     }
@@ -225,6 +227,7 @@ export async function searchSuppliers(query: DiscoveryQuery) {
       page: page.page,
       pages: page.pages,
       showScore: false,
+      comparable: page.comparable,
       facets,
     };
   } catch (error) {
@@ -265,13 +268,17 @@ function compareByMatch(left: CatalogSupplier, right: CatalogSupplier, reports: 
   const rightReport = reports.get(right.id);
   const leftScore = leftReport?.score ?? null;
   const rightScore = rightReport?.score ?? null;
-  if (leftScore == null && rightScore == null) return left.name.localeCompare(right.name, "ru");
+  if (leftScore == null && rightScore == null) return byNameThenId(left, right);
   if (leftScore == null) return 1;
   if (rightScore == null) return -1;
   if (leftScore !== rightScore) return rightScore - leftScore;
   const coverageGap = (rightReport?.coverage ?? 0) - (leftReport?.coverage ?? 0);
   if (coverageGap !== 0) return coverageGap;
-  return left.name.localeCompare(right.name, "ru");
+  return byNameThenId(left, right);
+}
+
+function byNameThenId(left: CatalogSupplier, right: CatalogSupplier) {
+  return left.name.localeCompare(right.name, "ru") || left.id.localeCompare(right.id);
 }
 
 async function loadSuppliersByIds(ids: string[]) {

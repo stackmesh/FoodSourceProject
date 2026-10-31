@@ -3,8 +3,10 @@ import pg from "pg";
 import { getPrisma } from "../src/lib/prisma.ts";
 import { createSupplier, deleteSupplier, updateSupplier } from "../src/server/supplier-records.ts";
 import { getSupplier, scoreSupplier, searchSuppliers } from "../src/server/catalog.ts";
-import { parseDiscoveryQuery } from "../src/lib/discovery-query.ts";
-import { cohortFromProductRows, normalizeComparableUnit } from "../src/server/matching.ts";
+import { parseDiscoveryQuery, toSearchParams } from "../src/lib/discovery-query.ts";
+import { normalizeComparableUnit } from "../src/server/matching.ts";
+import { comparableOfferGroup } from "../src/server/supplier-search.ts";
+import { supplierCompleteness } from "../src/server/supplier-sort.ts";
 
 config();
 
@@ -23,6 +25,10 @@ const counts = await db.query(
   `SELECT "dataType", COUNT(*)::int AS count FROM "Supplier" GROUP BY "dataType" ORDER BY "dataType"`,
 );
 const byType = Object.fromEntries(counts.rows.map((row) => [row.dataType, row.count]));
+check("invalid sort is rejected", parseDiscoveryQuery({ sort: "updatedAt;drop" }).sort === "name");
+check("name descending is a supported sort", parseDiscoveryQuery({ sort: "name-desc" }).sort === "name-desc");
+const kept = toSearchParams(parseDiscoveryQuery({ sort: "created", category: "dairy", page: "2" }), 2);
+check("pagination keeps the sort and filter", kept.get("sort") === "created" && kept.get("category") === "dairy" && kept.get("page") === "2");
 check("eight real suppliers", byType.REAL === 8);
 check("eighteen demo suppliers", byType.DEMO === 18);
 
@@ -109,47 +115,14 @@ check(
 );
 
 const priceSorted = await searchSuppliers(parseDiscoveryQuery({ sort: "price" }));
-const priceItems = [...priceSorted.items];
-for (let page = 2; page <= priceSorted.pages; page += 1) {
-  const next = await searchSuppliers(parseDiscoveryQuery({ sort: "price", page: String(page) }));
-  priceItems.push(...next.items);
-}
-const priceCohort = cohortFromProductRows(
-  priceItems.flatMap((item) =>
-    item.supplier.products.map((product) => ({
-      supplierId: item.supplier.id,
-      unit: product.unit,
-      currency: product.currency,
-      price: product.price,
-      moq: product.moq,
-    })),
-  ),
-);
-const dominantPrice = [...priceCohort.prices].sort((left, right) => right.suppliers - left.suppliers)[0];
-const dominantTied =
-  priceCohort.prices.filter((group) => group.suppliers === dominantPrice?.suppliers).length > 1;
-const comparablePrices = priceItems.map((item) => {
-  if (!dominantPrice || dominantTied) return null;
-  const amounts = item.supplier.products.flatMap((product) =>
-    product.price != null &&
-    (product.currency || "RUB") === dominantPrice.currency &&
-    normalizeComparableUnit(product.unit) === dominantPrice.unit
-      ? [product.price]
-      : [],
-  );
-  return amounts.length ? Math.min(...amounts) : null;
-});
-const firstWithoutUnit = comparablePrices.indexOf(null);
-check("price sort has one comparable unit", Boolean(dominantPrice) && !dominantTied && dominantPrice.unit === "kg");
+const priceGroup = await comparableOfferGroup(parseDiscoveryQuery({ sort: "price" }), "price");
+const nameOrdered = await searchSuppliers(parseDiscoveryQuery({ sort: "name" }));
+check("several equally common foods are not priced as one list", priceGroup == null);
 check(
-  "price sort is ascending inside that unit",
-  comparablePrices.filter((value) => value != null).every((value, index, values) => index === 0 || value >= values[index - 1]),
+  "incomparable prices stay in company name order",
+  priceSorted.items.map((item) => item.supplier.slug).join() ===
+    nameOrdered.items.map((item) => item.supplier.slug).join(),
 );
-check(
-  "price sort leaves other units after the comparable unit",
-  firstWithoutUnit === -1 || comparablePrices.slice(firstWithoutUnit).every((value) => value == null),
-);
-check("a piece price is not ranked as the lowest kilogram price", priceItems[0]?.supplier.slug !== "upakovka-povolzhyya");
 
 const page1 = await searchSuppliers(parseDiscoveryQuery({ sort: "name", page: "1" }));
 const page2 = await searchSuppliers(parseDiscoveryQuery({ sort: "name", page: "2" }));
@@ -281,6 +254,156 @@ check("updated name is searchable", updatedSearch.slugs.includes("vremennyy-pois
 await deleteSupplier(created.id);
 const deletedSearch = await names({ q: "Временный" });
 check("deleted supplier leaves search", !deletedSearch.slugs.includes("vremennyy-poisk"));
+
+async function allSorted(sort, extra = {}) {
+  const first = await searchSuppliers(parseDiscoveryQuery({ sort, ...extra }));
+  const items = [...first.items];
+  for (let page = 2; page <= first.pages; page += 1) {
+    const next = await searchSuppliers(parseDiscoveryQuery({ sort, ...extra, page: String(page) }));
+    items.push(...next.items);
+  }
+  return { first, items };
+}
+
+function offerAmount(item, group, kind) {
+  if (!group) return null;
+  const amounts = item.supplier.products.flatMap((product) => {
+    const amount = kind === "price" ? product.price : product.moq;
+    const sameOffer =
+      amount != null &&
+      amount >= 0 &&
+      product.categorySlug === group.category &&
+      normalizeComparableUnit(product.unit) === group.unit &&
+      (kind !== "price" || (product.currency || "RUB").toUpperCase() === group.currency);
+    return sameOffer ? [amount] : [];
+  });
+  return amounts.length ? Math.min(...amounts) : null;
+}
+
+function monotonic(values, direction) {
+  const present = [];
+  let seenNull = false;
+  for (const value of values) {
+    if (value == null) {
+      seenNull = true;
+      continue;
+    }
+    if (seenNull) return false;
+    present.push(value);
+  }
+  return present.every((value, index) => {
+    if (index === 0) return true;
+    return direction === "asc" ? value >= present[index - 1] : value <= present[index - 1];
+  });
+}
+
+const byName = await allSorted("name");
+const byNameDesc = await allSorted("name-desc");
+check("name sort stays on its own pages", byName.first.page === 1 && byName.first.items.length === 9);
+check(
+  "name descending reverses company name order",
+  byNameDesc.items.map((item) => item.supplier.slug).join() ===
+    byName.items.map((item) => item.supplier.slug).reverse().join(),
+);
+check(
+  "name descending page 2 does not repeat page 1",
+  byNameDesc.first.items.every(
+    (item) => !byNameDesc.items.slice(9).some((next) => next.supplier.id === item.supplier.id),
+  ),
+);
+
+const highPrice = await allSorted("price-desc");
+const highPriceGroup = await comparableOfferGroup(parseDiscoveryQuery({ sort: "price-desc" }), "price");
+check(
+  "highest price keeps missing prices last",
+  monotonic(highPrice.items.map((item) => offerAmount(item, highPriceGroup, "price")), "desc"),
+);
+const dairyLow = await allSorted("price", { category: "dairy" });
+const dairyHigh = await allSorted("price-desc", { category: "dairy" });
+const dairyGroup = await comparableOfferGroup(parseDiscoveryQuery({ sort: "price", category: "dairy" }), "price");
+check("dairy price sort stays inside the dairy filter", dairyLow.items.every((item) => item.supplier.products.some((product) => product.categorySlug === "dairy")));
+check(
+  "dairy lowest and highest price use the same offer and opposite order",
+  dairyLow.first.total === dairyHigh.first.total &&
+    monotonic(dairyLow.items.map((item) => offerAmount(item, dairyGroup, "price")), "asc") &&
+    monotonic(dairyHigh.items.map((item) => offerAmount(item, dairyGroup, "price")), "desc"),
+);
+check(
+  "a dairy supplier without a price is not treated as the cheapest or dearest",
+  dairyLow.items.at(-1)?.supplier.slug === "ekoniva" && dairyHigh.items.at(-1)?.supplier.slug === "ekoniva",
+);
+
+const openMoqGroup = await comparableOfferGroup(parseDiscoveryQuery({ sort: "moq" }), "moq");
+const openMoq = await searchSuppliers(parseDiscoveryQuery({ sort: "moq" }));
+const openName = await searchSuppliers(parseDiscoveryQuery({ sort: "name" }));
+check("several equally common orders are not compared as one quantity", openMoqGroup == null);
+check(
+  "incomparable minimum orders stay in company name order",
+  openMoq.items.map((item) => item.supplier.slug).join() === openName.items.map((item) => item.supplier.slug).join(),
+);
+const lowMoq = await allSorted("moq", { category: "dairy" });
+const highMoq = await allSorted("moq-desc", { category: "dairy" });
+const moqGroup = await comparableOfferGroup(parseDiscoveryQuery({ sort: "moq", category: "dairy" }), "moq");
+check("dairy MOQ sort uses kilograms", moqGroup?.category === "dairy" && moqGroup.unit === "kg");
+check("lowest MOQ keeps missing quantities last", monotonic(lowMoq.items.map((item) => offerAmount(item, moqGroup, "moq")), "asc"));
+check("highest MOQ keeps missing quantities last", monotonic(highMoq.items.map((item) => offerAmount(item, moqGroup, "moq")), "desc"));
+const producePrices = await allSorted("price", { category: "produce" });
+const produceGroup = await comparableOfferGroup(parseDiscoveryQuery({ sort: "price", category: "produce" }), "price");
+check(
+  "produce price sort stays in produce kilograms and ignores piece prices",
+  produceGroup?.category === "produce" &&
+    produceGroup.unit === "kg" &&
+    produceGroup.currency === "RUB" &&
+    monotonic(producePrices.items.map((item) => offerAmount(item, produceGroup, "price")), "asc") &&
+    producePrices.items.every((item) => item.supplier.slug !== "upakovka-povolzhyya"),
+);
+check(
+  "MOQ sort combined with a city filter does not add other cities",
+  (await searchSuppliers(parseDiscoveryQuery({ sort: "moq-desc", city: "Владивосток" }))).items.every(
+    (item) => item.supplier.city === "Владивосток",
+  ),
+);
+
+const newest = await allSorted("created");
+const createdDates = newest.items.map((item) => item.supplier.createdAt);
+check(
+  "recently added is newest first",
+  createdDates.every((value, index) => index === 0 || value <= createdDates[index - 1]),
+);
+const updatedIds = (await allSorted("updated")).items.map((item) => item.supplier.id);
+const updatedRows = await getPrisma().supplier.findMany({
+  where: { id: { in: updatedIds } },
+  select: { id: true, updatedAt: true },
+});
+const updatedAt = new Map(updatedRows.map((row) => [row.id, row.updatedAt.toISOString()]));
+const updatedDates = updatedIds.map((id) => updatedAt.get(id));
+check(
+  "recently updated is latest first and keeps a date for every row",
+  updatedDates.every((value) => value) &&
+    updatedDates.every((value, index) => index === 0 || value <= updatedDates[index - 1]),
+);
+
+const complete = await allSorted("complete");
+const completeScores = complete.items.map((item) => supplierCompleteness(item.supplier));
+check(
+  "most complete information is descending",
+  completeScores.every((value, index) => index === 0 || value <= completeScores[index - 1]),
+);
+check(
+  "equal completeness keeps company name order",
+  complete.items.every((item, index, items) => {
+    if (index === 0 || supplierCompleteness(item.supplier) !== supplierCompleteness(items[index - 1].supplier)) return true;
+    return item.supplier.name.localeCompare(items[index - 1].supplier.name, "ru") >= 0;
+  }),
+);
+
+const invalidSorted = await searchSuppliers(parseDiscoveryQuery({ sort: "Supplier.updatedAt", category: "dairy" }));
+const dairyNamed = await searchSuppliers(parseDiscoveryQuery({ category: "dairy" }));
+check(
+  "an unknown sort with a category filter uses company name order",
+  invalidSorted.total === dairyNamed.total &&
+    invalidSorted.items.map((item) => item.supplier.slug).join() === dairyNamed.items.map((item) => item.supplier.slug).join(),
+);
 
 if (failures.length) {
   console.error(failures.join("\n"));

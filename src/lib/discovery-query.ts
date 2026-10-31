@@ -1,7 +1,21 @@
 import { z } from "zod";
 import { isContactStatus, type ContactStatus } from "@/lib/contact-tracking";
 
-const sorts = ["relevance", "match", "price", "moq", "name"] as const;
+export const sortOptions = [
+  { value: "match", label: "sortMatch" },
+  { value: "name", label: "sortName" },
+  { value: "name-desc", label: "sortNameDesc" },
+  { value: "price", label: "sortPrice" },
+  { value: "price-desc", label: "sortPriceDesc" },
+  { value: "moq", label: "sortMoq" },
+  { value: "moq-desc", label: "sortMoqDesc" },
+  { value: "updated", label: "sortUpdated" },
+  { value: "created", label: "sortCreated" },
+  { value: "complete", label: "sortComplete" },
+  { value: "relevance", label: "sortRelevance" },
+] as const;
+
+const sorts = sortOptions.map((option) => option.value);
 const scopes = ["all", "name", "product", "place"] as const;
 const supplierTypes = [
   "MANUFACTURER",
@@ -43,7 +57,7 @@ const inputSchema = z.object({
   contact: z.string().trim().max(40).optional().default(""),
   maxPrice: z.string().trim().max(20).optional().default(""),
   maxMoq: z.string().trim().max(20).optional().default(""),
-  sort: z.string().trim().max(20).optional().default(""),
+  sort: z.string().trim().max(32).optional().default(""),
   page: z.string().trim().max(8).optional().default(""),
 });
 

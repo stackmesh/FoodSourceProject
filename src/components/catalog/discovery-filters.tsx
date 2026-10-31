@@ -6,7 +6,7 @@ import { ChevronDown, Info, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { contactStatuses } from "@/lib/contact-tracking";
-import type { DiscoveryQuery, SupplierTypeFilter } from "@/lib/discovery-query";
+import { sortOptions, type DiscoveryQuery, type SupplierTypeFilter } from "@/lib/discovery-query";
 import { usePathname, useRouter } from "@/i18n/navigation";
 
 const types: SupplierTypeFilter[] = [
@@ -119,11 +119,11 @@ export function DiscoveryFilters({
             ))}
           </Select>
           <Select name="sort" label={t("sort")} defaultValue={query.sort}>
-            <option value="name">{t("sortName")}</option>
-            <option value="relevance">{t("sortRelevance")}</option>
-            <option value="match">{t("sortMatch")}</option>
-            <option value="price">{t("sortPrice")}</option>
-            <option value="moq">{t("sortMoq")}</option>
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(option.label)}
+              </option>
+            ))}
           </Select>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

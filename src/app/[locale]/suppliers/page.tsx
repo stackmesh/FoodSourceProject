@@ -8,7 +8,7 @@ import { SupplierCard } from "@/components/catalog/supplier-card";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
-import { parseDiscoveryQuery, toSearchParams } from "@/lib/discovery-query";
+import { parseDiscoveryQuery, sortOptions, toSearchParams } from "@/lib/discovery-query";
 import { defaultMatchWeights } from "@/server/matching";
 import { requestCalendarToday } from "@/lib/today";
 import { getWorkspace, searchSuppliers } from "@/server/catalog";
@@ -70,10 +70,20 @@ async function DiscoveryResults({
           regions={result.facets.regions}
         />
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <p className="inline-flex items-center gap-2 text-sm font-medium">
-            <Layers className="size-4 text-primary" />
-            {t("results", { count: result.total })}
-          </p>
+          <div>
+            <p className="inline-flex items-center gap-2 text-sm font-medium">
+              <Layers className="size-4 text-primary" />
+              {t("results", { count: result.total })}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("sortedBy", {
+                option: t((sortOptions.find((option) => option.value === query.sort) ?? sortOptions[1]).label),
+              })}
+            </p>
+            {result.comparable === false ? (
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">{t("sortNotComparable")}</p>
+            ) : null}
+          </div>
           {result.showScore ? (
             <p className="max-w-xl text-xs leading-5 text-primary">
               {t("scoreNote", {

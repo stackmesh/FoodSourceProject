@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { demoWorkspaceKey } from "@/config/site";
-import { foldSearchText, type DiscoveryQuery } from "@/lib/discovery-query";
+import { foldSearchText, type DiscoveryQuery, type SortKey } from "@/lib/discovery-query";
 import { getPrisma } from "@/lib/prisma";
 import { cohortFromProductRows, sqlUnitKey } from "@/server/matching";
 
@@ -147,35 +147,15 @@ export async function querySupplierPage(query: DiscoveryQuery) {
   const pages = Math.max(1, Math.ceil(total / discoveryPageSize));
   const page = Math.min(query.page, pages);
   const offset = (page - 1) * discoveryPageSize;
-  const priceUnit = (await dominantComparableUnit(query, "price")) ?? "";
-  const moqUnit = (await dominantComparableUnit(query, "moq")) ?? "";
+  const offerKind = comparableKind(query.sort);
+  const offerGroup = offerKind ? await comparableOfferGroup(query, offerKind) : null;
 
   const rows = total
     ? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT s."id"
         ${filteredFrom}
         WHERE ${where}
-        ORDER BY
-          CASE WHEN ${query.sort} = 'price' AND ${priceUnit} <> '' THEN (
-            SELECT MIN(p."estimatedPrice")
-            FROM "SupplierProduct" p
-            WHERE p."supplierId" = s."id"
-              AND p."estimatedPrice" IS NOT NULL
-              AND ${Prisma.raw(sqlUnitKey(`p."unit"`))} = ${priceUnit}
-          ) END ASC NULLS LAST,
-          CASE WHEN ${query.sort} = 'moq' AND ${moqUnit} <> '' THEN (
-            SELECT MIN(p."minimumOrderQuantity")
-            FROM "SupplierProduct" p
-            WHERE p."supplierId" = s."id"
-              AND p."minimumOrderQuantity" IS NOT NULL
-              AND ${Prisma.raw(sqlUnitKey(`p."unit"`))} = ${moqUnit}
-          ) END ASC NULLS LAST,
-          CASE
-            WHEN ${query.sort} = 'relevance' AND ${foldedQuery} <> '' AND ${folded.name} LIKE ${like} THEN 0
-            WHEN ${query.sort} = 'relevance' AND ${foldedQuery} <> '' THEN 1
-            ELSE 2
-          END,
-          s."name" ASC
+        ORDER BY ${orderBySql(query, offerGroup, foldedQuery, like)}
         LIMIT ${discoveryPageSize} OFFSET ${offset}
       `)
     : [];
@@ -187,6 +167,7 @@ export async function querySupplierPage(query: DiscoveryQuery) {
     pages,
     priceRange: range(summary?.price_min, summary?.price_max),
     moqRange: range(summary?.moq_min, summary?.moq_max),
+    comparable: offerKind ? offerGroup != null : null,
   };
 }
 
@@ -197,7 +178,7 @@ export async function querySupplierIds(query: DiscoveryQuery) {
     SELECT s."id"
     FROM "Supplier" s
     WHERE ${where}
-    ORDER BY s."name" ASC
+    ORDER BY s."name" ASC, s."id" ASC
   `);
   return rows.map((row) => row.id);
 }
@@ -229,25 +210,138 @@ export async function queryMatchCohort(query: DiscoveryQuery) {
   );
 }
 
-async function dominantComparableUnit(query: DiscoveryQuery, kind: "price" | "moq") {
-  if (query.sort !== kind) return null;
+export type ComparableOfferGroup = {
+  category: string;
+  unit: string;
+  currency: string | null;
+};
+
+function comparableKind(sort: SortKey): "price" | "moq" | null {
+  if (sort === "price" || sort === "price-desc") return "price";
+  if (sort === "moq" || sort === "moq-desc") return "moq";
+  return null;
+}
+
+export async function comparableOfferGroup(
+  query: DiscoveryQuery,
+  kind: "price" | "moq",
+): Promise<ComparableOfferGroup | null> {
   const like = `%${foldSearchText(query.q)}%`;
   const where = whereSql(query, like);
-  const present = kind === "price" ? Prisma.sql`p."estimatedPrice" IS NOT NULL` : Prisma.sql`p."minimumOrderQuantity" IS NOT NULL`;
-  const rows = await getPrisma().$queryRaw<Array<{ unit_key: string | null; suppliers: number }>>(Prisma.sql`
-    SELECT ${Prisma.raw(sqlUnitKey(`p."unit"`))} AS unit_key,
+  const amount = kind === "price" ? Prisma.sql`p."estimatedPrice"` : Prisma.sql`p."minimumOrderQuantity"`;
+  const currencySelect =
+    kind === "price"
+      ? Prisma.sql`COALESCE(NULLIF(upper(btrim(p."currency")), ''), 'RUB')`
+      : Prisma.sql`NULL`;
+  const rows = await getPrisma().$queryRaw<
+    Array<{ category: string | null; unit_key: string | null; currency: string | null; suppliers: number }>
+  >(Prisma.sql`
+    SELECT c."slug" AS category,
+           ${Prisma.raw(sqlUnitKey(`p."unit"`))} AS unit_key,
+           ${currencySelect} AS currency,
            COUNT(DISTINCT p."supplierId")::int AS suppliers
     FROM "Supplier" s
     JOIN "SupplierProduct" p ON p."supplierId" = s."id"
-    WHERE ${where} AND ${present}
-    GROUP BY 1
-    ORDER BY suppliers DESC, unit_key ASC
+    JOIN "Category" c ON c."id" = p."categoryId"
+    WHERE ${where}
+      AND ${amount} IS NOT NULL
+      AND ${amount} >= 0
+      AND (${query.category} = '' OR c."slug" = ${query.category})
+    GROUP BY 1, 2, 3
+    ORDER BY suppliers DESC, category ASC, unit_key ASC, currency ASC
   `);
-  const [best, next] = rows;
-  if (!best?.unit_key) return null;
+  const comparable = rows.filter((row) => row.category && row.unit_key);
+  const [best, next] = comparable;
+  if (!best?.category || !best.unit_key) return null;
   if (next && next.suppliers === best.suppliers) return null;
-  return best.unit_key;
+  return { category: best.category, unit: best.unit_key, currency: kind === "price" ? best.currency : null };
 }
+
+function orderBySql(
+  query: DiscoveryQuery,
+  group: ComparableOfferGroup | null,
+  foldedQuery: string,
+  like: string,
+) {
+  const nameThenId = Prisma.sql`s."name" ASC, s."id" ASC`;
+  switch (query.sort) {
+    case "name-desc":
+      return Prisma.sql`s."name" DESC, s."id" ASC`;
+    case "updated":
+      return Prisma.sql`s."updatedAt" DESC NULLS LAST, ${nameThenId}`;
+    case "created":
+      return Prisma.sql`s."createdAt" DESC NULLS LAST, ${nameThenId}`;
+    case "complete":
+      return Prisma.sql`${completenessSql} DESC, ${nameThenId}`;
+    case "price":
+    case "price-desc":
+      return Prisma.sql`${offerAmountSql(group, "price")} ${query.sort === "price-desc" ? Prisma.raw("DESC") : Prisma.raw("ASC")} NULLS LAST, ${nameThenId}`;
+    case "moq":
+    case "moq-desc":
+      return Prisma.sql`${offerAmountSql(group, "moq")} ${query.sort === "moq-desc" ? Prisma.raw("DESC") : Prisma.raw("ASC")} NULLS LAST, ${nameThenId}`;
+    case "relevance":
+      return Prisma.sql`
+        CASE
+          WHEN ${foldedQuery} <> '' AND ${folded.name} LIKE ${like} THEN 0
+          WHEN ${foldedQuery} <> '' THEN 1
+          ELSE 2
+        END,
+        ${nameThenId}
+      `;
+    default:
+      return nameThenId;
+  }
+}
+
+function offerAmountSql(group: ComparableOfferGroup | null, kind: "price" | "moq") {
+  if (!group) return Prisma.sql`NULL::numeric`;
+  const amount = kind === "price" ? Prisma.sql`p."estimatedPrice"` : Prisma.sql`p."minimumOrderQuantity"`;
+  const currencySql =
+    kind === "price"
+      ? Prisma.sql`AND COALESCE(NULLIF(upper(btrim(p."currency")), ''), 'RUB') = ${group.currency ?? ""}`
+      : Prisma.empty;
+  return Prisma.sql`(
+    SELECT MIN(${amount})
+    FROM "SupplierProduct" p
+    JOIN "Category" c ON c."id" = p."categoryId"
+    WHERE p."supplierId" = s."id"
+      AND ${amount} IS NOT NULL
+      AND ${amount} >= 0
+      AND c."slug" = ${group.category}
+      AND ${Prisma.raw(sqlUnitKey(`p."unit"`))} = ${group.unit}
+      ${currencySql}
+  )`;
+}
+
+const completenessSql = Prisma.sql`(
+  (CASE WHEN btrim(coalesce(s."description", '')) <> '' THEN 1 ELSE 0 END) +
+  (CASE WHEN btrim(coalesce(s."city", '')) <> '' THEN 1 ELSE 0 END) +
+  (CASE WHEN btrim(coalesce(s."region", '')) <> '' THEN 1 ELSE 0 END) +
+  (CASE WHEN btrim(coalesce(s."address", '')) <> '' THEN 1 ELSE 0 END) +
+  (CASE WHEN btrim(coalesce(s."website", '')) <> '' THEN 1 ELSE 0 END) +
+  (CASE WHEN btrim(coalesce(s."sourceUrl", '')) <> '' THEN 1 ELSE 0 END) +
+  (CASE WHEN s."supplierType"::text <> 'OTHER' THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (SELECT 1 FROM "SupplierProduct" p WHERE p."supplierId" = s."id") THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (
+    SELECT 1 FROM "SupplierProduct" p
+    WHERE p."supplierId" = s."id" AND p."estimatedPrice" IS NOT NULL AND p."estimatedPrice" >= 0
+  ) THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (
+    SELECT 1 FROM "SupplierProduct" p
+    WHERE p."supplierId" = s."id" AND p."minimumOrderQuantity" IS NOT NULL AND p."minimumOrderQuantity" >= 0
+  ) THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (
+    SELECT 1 FROM "SupplierProduct" p
+    WHERE p."supplierId" = s."id" AND btrim(coalesce(p."unit", '')) <> ''
+  ) THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (
+    SELECT 1 FROM "SupplierProduct" p
+    WHERE p."supplierId" = s."id" AND btrim(coalesce(p."deliveryNotes", '')) <> ''
+  ) THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (SELECT 1 FROM "SupplierContact" contact WHERE contact."supplierId" = s."id") THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (SELECT 1 FROM "Certification" cert WHERE cert."supplierId" = s."id") THEN 1 ELSE 0 END) +
+  (CASE WHEN EXISTS (SELECT 1 FROM "SupplierSource" src WHERE src."supplierId" = s."id") THEN 1 ELSE 0 END)
+)`;
 
 function range(min: string | null | undefined, max: string | null | undefined) {
   if (min == null || max == null) return null;

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 export const navigation = [
-  { href: "/", key: "overview", icon: LayoutDashboard },
+  { href: "/dashboard", key: "overview", icon: LayoutDashboard },
   { href: "/suppliers", key: "suppliers", icon: Building2 },
   { href: "/compare", key: "compare", icon: ArrowLeftRight },
   { href: "/favorites", key: "favorites", icon: Star },

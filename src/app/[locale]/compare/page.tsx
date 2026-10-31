@@ -1,6 +1,12 @@
-import { setRequestLocale } from "next-intl/server";
-import { SectionPage, sectionMetadata } from "@/components/layout/section-page";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
+import { EmptyState, ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
+import { CompareView } from "@/components/catalog/compare-view";
 import { assertLocale } from "@/i18n/locale";
+import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
+import { getSuppliersBySlugs } from "@/server/catalog";
+import { DataError } from "@/server/catalog-types";
 
 export async function generateMetadata({
   params,
@@ -8,7 +14,8 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }) {
   const locale = assertLocale((await params).locale);
-  return sectionMetadata("compare", locale);
+  const t = await getTranslations({ locale, namespace: "Compare" });
+  return { title: t("title") };
 }
 
 export default async function ComparePage({
@@ -18,6 +25,47 @@ export default async function ComparePage({
 }) {
   const locale = assertLocale((await params).locale);
   setRequestLocale(locale);
+  const t = await getTranslations("Compare");
 
-  return <SectionPage page="compare" />;
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
+      <PageIntro title={t("title")} description={t("description")} />
+      <Suspense fallback={<PanelSkeleton />}>
+        <Comparison locale={locale} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function Comparison({ locale }: { locale: string }) {
+  const t = await getTranslations("Compare");
+  const suppliers = await loadComparison();
+
+  if (!suppliers) {
+    return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
+  }
+
+  if (!suppliers.length) {
+    return (
+      <EmptyState
+        title={t("emptyTitle")}
+        text={t("emptyText")}
+        href="/suppliers"
+        action={t("emptyAction")}
+      />
+    );
+  }
+
+  return <CompareView suppliers={suppliers} locale={locale} />;
+}
+
+async function loadComparison() {
+  try {
+    const jar = await cookies();
+    const slugs = parseCompareSlugs(jar.get(compareCookieName)?.value);
+    return await getSuppliersBySlugs(slugs);
+  } catch (error) {
+    if (!(error instanceof DataError)) throw error;
+    return null;
+  }
 }

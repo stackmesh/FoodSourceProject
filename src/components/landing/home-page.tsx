@@ -59,7 +59,7 @@ export async function HomePage() {
           {categoryKeys.map((key) => (
             <li key={key}>
               <Link
-                href={`/suppliers?q=${encodeURIComponent(t(`categories.${key}`))}`}
+                href={`/suppliers?category=${key}`}
                 className="inline-flex rounded-full border bg-card px-3 py-1.5 text-sm hover:border-primary/40 hover:bg-accent"
               >
                 {t(`categories.${key}`)}

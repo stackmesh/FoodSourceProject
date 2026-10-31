@@ -2,7 +2,7 @@
 
 B2B food supplier discovery for restaurants and procurement teams. This repository currently contains the application foundation: Next.js, a landing-page shell, Russian and English, and the PostgreSQL schema.
 
-Supplier search, profiles, comparison, and saved suppliers are not implemented yet.
+The catalog, supplier profiles, comparison, and favorites are available against the seeded demonstration data. Run `npm run db:seed` after migrating.
 
 ## Stack
 

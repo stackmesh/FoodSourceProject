@@ -16,7 +16,12 @@ import { siteConfig } from "@/config/site";
 import { Link, usePathname } from "@/i18n/navigation";
 import { LanguageSwitcher } from "./language-switcher";
 
-const headerLinks = navigation.filter((item) => item.key !== "overview");
+const headerLinks = navigation.filter((item) =>
+  item.key === "overview" ||
+  item.key === "suppliers" ||
+  item.key === "compare" ||
+  item.key === "favorites",
+);
 
 export function SiteHeader() {
   const t = useTranslations("Header");
@@ -74,7 +79,7 @@ export function SiteHeader() {
                 <SheetTitle>{nav("label")}</SheetTitle>
               </SheetHeader>
               <nav className="mt-6 flex flex-col gap-1" aria-label={nav("label")}>
-                {headerLinks.map((item) => (
+                {navigation.map((item) => (
                   <SheetClose asChild key={item.key}>
                     <Link
                       href={item.href}

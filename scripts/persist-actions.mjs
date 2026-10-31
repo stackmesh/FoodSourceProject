@@ -193,6 +193,26 @@ try {
     "removing the favorite deletes the shortlist and its notes",
     unsavePost.status < 400 && gone.rows.every((row) => row.shortlist == null && row.note == null),
   );
+
+  const afterRemoval = await getHtml(`/suppliers/${slug}`);
+  const noteWithoutSave = parseForms(afterRemoval).find((form) => form.textareaName === "content");
+  const directNote = "Заметка без предварительного сохранения";
+  const directPost = noteWithoutSave
+    ? await postForm(`/suppliers/${slug}`, withField(noteWithoutSave.fields, "content", directNote))
+    : { status: 0 };
+  const directRows = await db.query(
+    `SELECT s."id" AS shortlist, n."content" AS content
+     FROM "Supplier" supplier
+     LEFT JOIN "Shortlist" s ON s."supplierId" = supplier."id" AND s."workspaceKey" = 'demo-workspace'
+     LEFT JOIN "SupplierNote" n ON n."supplierId" = supplier."id" AND n."workspaceKey" = 'demo-workspace'
+     WHERE supplier."id" = $1`,
+    [supplierId],
+  );
+  check(
+    "a note saves the supplier and stores the text",
+    directPost.status < 400 &&
+      directRows.rows.some((row) => row.shortlist != null && row.content === directNote),
+  );
 } finally {
   if (supplierId) {
     await db.query(`DELETE FROM "SupplierNote" WHERE "supplierId" = $1`, [supplierId]);

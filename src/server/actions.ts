@@ -171,17 +171,20 @@ export async function saveNote(
   }
 
   const prisma = getPrisma();
-  const saved = await prisma.shortlist.findUnique({
-    where: {
-      workspaceKey_supplierId: {
-        workspaceKey: demoWorkspaceKey,
-        supplierId: supplierId.data,
-      },
-    },
+  const supplier = await prisma.supplier.findUnique({
+    where: { id: supplierId.data },
+    select: { id: true },
   });
-  if (!saved) {
+  if (!supplier) {
     return { ok: false, error: "missing" };
   }
+
+  const shortlistKey = {
+    workspaceKey_supplierId: {
+      workspaceKey: demoWorkspaceKey,
+      supplierId: supplier.id,
+    },
+  };
 
   if (noteId) {
     const parsedId = idSchema.safeParse(noteId);
@@ -203,13 +206,20 @@ export async function saveNote(
       data: { content },
     });
   } else {
-    await prisma.supplierNote.create({
-      data: {
-        workspaceKey: demoWorkspaceKey,
-        supplierId: supplierId.data,
-        content,
-      },
-    });
+    await prisma.$transaction([
+      prisma.shortlist.upsert({
+        where: shortlistKey,
+        create: { workspaceKey: demoWorkspaceKey, supplierId: supplier.id },
+        update: {},
+      }),
+      prisma.supplierNote.create({
+        data: {
+          workspaceKey: demoWorkspaceKey,
+          supplierId: supplier.id,
+          content,
+        },
+      }),
+    ]);
   }
 
   refresh();

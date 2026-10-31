@@ -1,5 +1,7 @@
 import { setRequestLocale } from "next-intl/server";
 import { getTranslations } from "next-intl/server";
+import { Suspense } from "react";
+import { PanelSkeleton } from "@/components/catalog/chrome";
 import { HomePage } from "@/components/landing/home-page";
 import { assertLocale } from "@/i18n/locale";
 
@@ -22,5 +24,9 @@ export default async function OverviewPage({
   const locale = assertLocale((await params).locale);
   setRequestLocale(locale);
 
-  return <HomePage />;
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-16"><PanelSkeleton /></div>}>
+      <HomePage locale={locale} />
+    </Suspense>
+  );
 }

@@ -1,5 +1,5 @@
 import { CertificationBadge, SupplierBadges } from "@/components/catalog/badges";
-import { CompareButton, FavoriteButton, SaveForNotes } from "@/components/catalog/supplier-actions";
+import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
 import { SourceMenu } from "@/components/catalog/source-menu";
 import {
@@ -268,24 +268,26 @@ export async function SupplierProfile({
                     {item.verificationNotes ? (
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.verificationNotes}</p>
                     ) : null}
-                    {item.documentUrl || item.sourceUrl ? (
-                      <p className="mt-2 text-xs leading-5">
-                        <span className="text-muted-foreground">{t("document")}: </span>
-                        {item.documentUrl ? (
+                    <p className="mt-2 text-xs leading-5">
+                      {item.documentUrl ? (
+                        <>
+                          <span className="text-muted-foreground">{t("document")}: </span>
                           <a href={item.documentUrl} target="_blank" rel="noreferrer" className="break-all text-primary hover:underline">
                             {item.documentUrl}
                           </a>
-                        ) : null}
-                        {item.documentUrl && item.sourceUrl ? <span className="text-muted-foreground"> · </span> : null}
-                        {item.sourceUrl ? (
-                          <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="break-all text-primary hover:underline">
-                            {item.sourceUrl}
-                          </a>
-                        ) : null}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">{t("noDocument")}</span>
+                      )}
+                    </p>
+                    {item.sourceUrl ? (
+                      <p className="mt-1 text-xs leading-5">
+                        <span className="text-muted-foreground">{t("source")}: </span>
+                        <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="break-all text-primary hover:underline">
+                          {item.sourceUrl}
+                        </a>
                       </p>
-                    ) : (
-                      <p className="mt-2 text-xs text-muted-foreground">{t("noDocument")}</p>
-                    )}
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -383,7 +385,7 @@ export async function SupplierProfile({
             ) : (
               <div className="mt-3 space-y-4">
                 <p className="text-sm leading-6 text-muted-foreground">{t("saveFirst")}</p>
-                <SaveForNotes supplierId={supplier.id} />
+                <NoteEditor supplierId={supplier.id} />
               </div>
             )}
           </section>

@@ -4,11 +4,19 @@ import { supplierCertificateMark, type CertificateMark } from "@/lib/certificate
 import { ContactStatusForm, DeleteNoteButton, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
+import { compareLimit } from "@/lib/comparison";
 import { formatMoney, formatQuantity } from "@/lib/format";
 import type { CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
 import { matchSuppliers, type FactorStatus, type MatchContext, type MatchReport } from "@/server/matching";
 import { removeFromComparison } from "@/server/actions";
 import { getTranslations } from "next-intl/server";
+import { Info, MapPin, Percent, Plus, ShieldCheck, X, type LucideIcon } from "lucide-react";
+
+const columnTones = [
+  { badge: "bg-emerald-600 text-white", bar: "bg-emerald-500", score: "text-emerald-700" },
+  { badge: "bg-sky-500 text-white", bar: "bg-sky-500", score: "text-sky-700" },
+  { badge: "bg-violet-500 text-white", bar: "bg-violet-500", score: "text-violet-700" },
+] as const;
 
 type Cell = {
   text: string;
@@ -38,70 +46,77 @@ export async function CompareView({
   const profile = await getTranslations("Profile");
   const reports = matchSuppliers(suppliers, context);
   const rows = buildRows(suppliers, reports, locale, catalog, t);
+  const byId = new Map(reports.map((report) => [report.supplierId, report]));
+  const savedIds = new Set(workspace.map((entry) => entry.supplierId));
 
   return (
     <div className="space-y-4">
-      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{t("disclaimer")}</p>
-      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{t("legend")}</p>
-      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{t("statusLegend")}</p>
-      <ComparisonBasis suppliers={suppliers} context={context} locale={locale} t={t} />
-      <ScoreBreakdown suppliers={suppliers} reports={reports} unavailable={catalog("scoreUnavailable")} t={t} />
-      <div className="space-y-4 md:hidden">
+      <GuideCards suppliers={suppliers} context={context} locale={locale} t={t} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {suppliers.map((supplier, index) => (
-          <article key={supplier.id} className="rounded-xl border bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold">
-                <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
-                  {supplier.name}
-                </Link>
-              </h2>
-              <RemoveForm slug={supplier.slug} label={t("remove")} />
-            </div>
-            <dl className="mt-4 grid gap-3">
-              {rows.map((row) => (
-                <div
-                  key={row.key}
-                  className={`rounded-md px-2 py-1.5 ${row.cells[index]?.best ? "bg-primary/10" : ""}`}
-                >
-                  <dt className="text-xs text-muted-foreground">{row.label}</dt>
-                  <dd className="text-sm">
-                    {row.cells[index] ? <CellBody cell={row.cells[index]} /> : null}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </article>
+          <SupplierSummary
+            key={supplier.id}
+            supplier={supplier}
+            index={index}
+            report={byId.get(supplier.id)}
+            saved={savedIds.has(supplier.id)}
+            unavailable={catalog("unavailable")}
+            demo={catalog("demo")}
+            verification={catalog(`verification.${supplier.verificationStatus}`)}
+            t={t}
+          />
         ))}
+        <AddSupplierSlot label={t("addSupplier")} hint={t("addSupplierLimit", { count: compareLimit })} enabled={suppliers.length < compareLimit} />
       </div>
-      <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
-        <table className="w-full min-w-[720px] border-collapse text-sm">
+      <div className="overflow-x-auto rounded-xl border bg-card">
+        <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
             <tr className="border-b">
-              <th className="w-40 px-4 py-3 text-left font-medium text-muted-foreground">{t("field")}</th>
-              {suppliers.map((supplier) => (
-                <th key={supplier.id} className="min-w-52 px-4 py-3 text-left align-top font-semibold">
-                  <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
-                    {supplier.name}
-                  </Link>
-                  <div className="mt-2">
-                    <RemoveForm slug={supplier.slug} label={t("remove")} />
-                  </div>
-                </th>
-              ))}
+              <th className="w-44 px-4 py-3 text-left font-medium text-muted-foreground">{t("criteria")}</th>
+              {suppliers.map((supplier, index) => {
+                const tone = columnTones[index] ?? columnTones[0];
+                return (
+                  <th key={supplier.id} className="min-w-52 px-4 py-3 text-left align-top">
+                    <div className="flex items-center gap-2">
+                      <span className={`flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold ${tone.badge}`}>
+                        {index + 1}
+                      </span>
+                      <Link href={`/suppliers/${supplier.slug}`} className="font-semibold hover:text-primary">
+                        {supplier.name}
+                      </Link>
+                    </div>
+                    <div className="mt-2 max-w-36">
+                      <ScoreFigure
+                        score={byId.get(supplier.id)?.score ?? null}
+                        barClass={tone.bar}
+                        numberClass={tone.score}
+                        unavailable={catalog("scoreUnavailable")}
+                        compact
+                      />
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} className="border-b last:border-b-0">
-                <th className="px-4 py-3 text-left align-top font-medium text-muted-foreground">
-                  {row.label}
-                </th>
+                <th className="px-4 py-3 text-left align-top font-medium text-muted-foreground">{row.label}</th>
                 {row.cells.map((cell, index) => (
-                  <td
-                    key={`${row.key}-${suppliers[index]?.id}`}
-                    className={`px-4 py-3 align-top ${cell.best ? "bg-primary/10" : ""}`}
-                  >
-                    <CellBody cell={cell} />
+                  <td key={`${row.key}-${suppliers[index]?.id}`} className="px-4 py-3 align-top">
+                    {row.key === "score" ? (
+                      <ScoreFigure
+                        score={byId.get(suppliers[index]?.id ?? "")?.score ?? null}
+                        barClass={(columnTones[index] ?? columnTones[0]).bar}
+                        numberClass={(columnTones[index] ?? columnTones[0]).score}
+                        unavailable={catalog("scoreUnavailable")}
+                      />
+                    ) : row.key === "verification" ? (
+                      <VerificationCell supplier={suppliers[index]} label={cell.text} />
+                    ) : (
+                      <CellBody cell={cell} />
+                    )}
                   </td>
                 ))}
               </tr>
@@ -160,7 +175,7 @@ function FactorChip({
   const tone =
     status === "scored"
       ? points
-        ? "border-primary/30 bg-primary/10 text-foreground"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
         : "border-border bg-muted text-muted-foreground"
       : status === "not_comparable"
         ? "border-amber-200 bg-amber-50 text-amber-950"
@@ -169,45 +184,6 @@ function FactorChip({
           : "border-border bg-background text-muted-foreground";
 
   return <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>;
-}
-
-function ComparisonBasis({
-  suppliers,
-  context,
-  locale,
-  t,
-}: {
-  suppliers: CatalogSupplier[];
-  context?: MatchContext;
-  locale: string;
-  t: Awaited<ReturnType<typeof getTranslations>>;
-}) {
-  const category = context?.category
-    ? categoryName(suppliers, context.category, locale)
-    : "";
-  const details = [
-    context?.query ? t("basisQuery", { query: context.query }) : "",
-    category ? t("basisCategory", { category }) : "",
-    context?.city ? t("basisCity", { city: context.city }) : "",
-    context?.region ? t("basisRegion", { region: context.region }) : "",
-  ].filter(Boolean);
-
-  return (
-    <div className="space-y-2">
-      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-        {details.length ? t("basisFromSearch") : t("basisAmongSelection")}
-      </p>
-      {details.length ? (
-        <ul className="flex flex-wrap gap-2">
-          {details.map((detail) => (
-            <li key={detail} className="rounded-md border bg-card px-2 py-0.5 text-xs">
-              {detail}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
 }
 
 function geographyReason(
@@ -230,8 +206,8 @@ function RemoveForm({ slug, label }: { slug: string; label: string }) {
   return (
     <form action={removeFromComparison}>
       <input type="hidden" name="slug" value={slug} />
-      <Button type="submit" variant="outline" size="sm">
-        {label}
+      <Button type="submit" variant="ghost" size="icon-sm" aria-label={label}>
+        <X />
       </Button>
     </form>
   );
@@ -252,7 +228,9 @@ function buildRows(
     if (!factor) return {};
     const statusLabel =
       factor.status === "scored"
-        ? t("points", { points: factor.points ?? 0 })
+        ? (factor.points ?? 0) > 0
+          ? t("comparable")
+          : t("points", { points: factor.points ?? 0 })
         : t(`status.${factor.status}`);
     return { status: factor.status, points: factor.points, statusLabel };
   };
@@ -293,7 +271,10 @@ function buildRows(
       key: "location",
       label: t("location"),
       cells: suppliers.map((supplier) => ({
-        text: [supplier.city, supplier.region].filter(Boolean).join(", ") || unavailable,
+        text: (() => {
+          const place = [supplier.city, supplier.region].filter(Boolean).join(", ");
+          return place ? [place, supplier.country].filter(Boolean).join(", ") : unavailable;
+        })(),
         best: false,
         note: geographyReason(byId.get(supplier.id), t),
         noteTone: "neutral",
@@ -385,60 +366,226 @@ function buildRows(
   ];
 }
 
-function ScoreBreakdown({
+function GuideCards({
   suppliers,
-  reports,
-  unavailable,
+  context,
+  locale,
   t,
 }: {
   suppliers: CatalogSupplier[];
-  reports: MatchReport[];
-  unavailable: string;
+  context?: MatchContext;
+  locale: string;
   t: Awaited<ReturnType<typeof getTranslations>>;
 }) {
-  const byId = new Map(reports.map((report) => [report.supplierId, report]));
+  const category = context?.category ? categoryName(suppliers, context.category, locale) : "";
+  const details = [
+    context?.query ? t("basisQuery", { query: context.query }) : "",
+    category ? t("basisCategory", { category }) : "",
+    context?.city ? t("basisCity", { city: context.city }) : "",
+    context?.region ? t("basisRegion", { region: context.region }) : "",
+  ].filter(Boolean);
+  const cards: { id: string; icon: LucideIcon; tone: string; title: string; body: string }[] = [
+    { id: "score", icon: ShieldCheck, tone: "bg-emerald-50 text-emerald-700", title: t("guideScore"), body: t("disclaimer") },
+    { id: "check", icon: Info, tone: "bg-violet-50 text-violet-700", title: t("guideCheck"), body: t("legend") },
+    { id: "rank", icon: Percent, tone: "bg-sky-50 text-sky-700", title: t("guideRank"), body: t("statusLegend") },
+    {
+      id: "place",
+      icon: MapPin,
+      tone: "bg-amber-50 text-amber-700",
+      title: t("guidePlace"),
+      body: details.length ? t("basisFromSearch") : t("basisAmongSelection"),
+    },
+  ];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {suppliers.map((supplier) => {
-        const report = byId.get(supplier.id);
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {cards.map((card) => {
+        const Icon = card.icon;
         return (
-          <article key={supplier.id} className="rounded-xl border bg-card p-4">
-            <h2 className="text-sm font-semibold">{supplier.name}</h2>
-            <p className="mt-1 text-2xl font-semibold tracking-tight">
-              {report?.score == null ? unavailable : report.score}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {t("coverage", { percent: Math.round((report?.coverage ?? 0) * 100) })}
-            </p>
-            <ul className="mt-3 space-y-2">
-              {report?.factors.map((factor) => (
-                <li key={factor.key} className="text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>{t(`factors.${factor.key}`)}</span>
-                    <FactorChip
-                      status={factor.status}
-                      points={factor.points}
-                      label={
-                        factor.status === "scored"
-                          ? t("points", { points: factor.points ?? 0 })
-                          : t(`status.${factor.status}`)
-                      }
-                    />
-                  </div>
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {t("weight", { percent: Math.round(factor.weight * 100) })}
-                    {" · "}
-                    {t(`reasons.${factor.reason}`)}
-                  </p>
-                </li>
-              ))}
-            </ul>
+          <article key={card.id} className="rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2">
+              <span className={`flex size-7 items-center justify-center rounded-full ${card.tone}`}>
+                <Icon className="size-3.5" />
+              </span>
+              <h2 className="text-sm font-medium">{card.title}</h2>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{card.body}</p>
+            {card.id === "place" && details.length ? (
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {details.map((detail) => (
+                  <li key={detail} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                    {detail}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </article>
         );
       })}
     </div>
   );
+}
+
+function SupplierSummary({
+  supplier,
+  index,
+  report,
+  saved,
+  unavailable,
+  demo,
+  verification,
+  t,
+}: {
+  supplier: CatalogSupplier;
+  index: number;
+  report: MatchReport | undefined;
+  saved: boolean;
+  unavailable: string;
+  demo: string;
+  verification: string;
+  t: Awaited<ReturnType<typeof getTranslations>>;
+}) {
+  const tone = columnTones[index] ?? columnTones[0];
+  const { advantage, weakest } = factorExtremes(report);
+  const thin = report == null || report.score == null || report.coverage < 0.5;
+
+  return (
+    <article className="flex flex-col rounded-xl border bg-card p-4">
+      <div className="flex items-start gap-2">
+        <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold ${tone.badge}`}>
+          {index + 1}
+        </span>
+        <h2 className="min-w-0 flex-1 text-sm font-semibold">
+          <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
+            {supplier.name}
+          </Link>
+        </h2>
+        <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
+        <RemoveForm slug={supplier.slug} label={t("remove")} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {supplier.dataType === "DEMO" ? (
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+            {demo}
+          </span>
+        ) : null}
+        {thin ? (
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{t("insufficient")}</span>
+        ) : null}
+      </div>
+      <p className="mt-3 flex items-center gap-1 text-xs text-muted-foreground" title={t("disclaimer")}>
+        {t("score")}
+        <Info className="size-3.5" />
+      </p>
+      <ScoreFigure
+        score={report?.score ?? null}
+        barClass={tone.bar}
+        numberClass={tone.score}
+        unavailable={unavailable}
+      />
+      <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+        <div>
+          <dt className="text-xs text-muted-foreground">{t("keyAdvantage")}</dt>
+          <dd className="mt-0.5 font-medium">{advantage ? t(`factors.${advantage.key}`) : unavailable}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">{t("weakest")}</dt>
+          <dd className="mt-0.5 font-medium">{weakest ? t(`factors.${weakest.key}`) : unavailable}</dd>
+        </div>
+        <div className="col-span-2 flex items-center justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">{t("reliability")}</dt>
+          <dd className="flex items-center gap-1.5 text-right font-medium">
+            {verification}
+            <span className={`size-2 rounded-full ${verificationDot(supplier.verificationStatus)}`} />
+          </dd>
+        </div>
+      </dl>
+    </article>
+  );
+}
+
+function AddSupplierSlot({ label, hint, enabled }: { label: string; hint: string; enabled: boolean }) {
+  const className =
+    "flex min-h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-card px-4 text-center text-sm font-medium";
+  if (!enabled) {
+    return (
+      <div className={`${className} text-muted-foreground`} aria-disabled="true">
+        <Plus className="size-5" />
+        {label}
+        <span className="text-xs font-normal">{hint}</span>
+      </div>
+    );
+  }
+  return (
+    <Link href="/suppliers" className={`${className} hover:bg-accent`}>
+      <Plus className="size-5" />
+      {label}
+      <span className="text-xs font-normal text-muted-foreground">{hint}</span>
+    </Link>
+  );
+}
+
+function ScoreFigure({
+  score,
+  barClass,
+  numberClass,
+  unavailable,
+  compact = false,
+}: {
+  score: number | null;
+  barClass: string;
+  numberClass: string;
+  unavailable: string;
+  compact?: boolean;
+}) {
+  if (score == null) {
+    return <p className="text-sm text-muted-foreground">{unavailable}</p>;
+  }
+  return (
+    <div>
+      <p className={`${compact ? "text-sm" : "text-3xl"} font-semibold tracking-tight ${numberClass}`}>
+        {score}
+        <span className={`${compact ? "text-xs" : "text-base"} font-medium text-muted-foreground`}> /100</span>
+      </p>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function VerificationCell({ supplier, label }: { supplier: CatalogSupplier | undefined; label: string }) {
+  if (!supplier) return null;
+  const [status, extra] = label.split("\n");
+  return (
+    <div>
+      <p className="flex items-center gap-1.5">
+        <span className={`size-2 shrink-0 rounded-full ${verificationDot(supplier.verificationStatus)}`} />
+        {status}
+      </p>
+      {extra ? <p className="mt-1 text-xs text-muted-foreground">{extra}</p> : null}
+    </div>
+  );
+}
+
+function verificationDot(status: CatalogSupplier["verificationStatus"]) {
+  if (status === "VERIFIED") return "bg-emerald-500";
+  if (status === "PARTIALLY_VERIFIED" || status === "EXPIRED") return "bg-amber-400";
+  return "bg-red-500";
+}
+
+function factorExtremes(report: MatchReport | undefined) {
+  if (!report) return { advantage: null, weakest: null };
+  const scored = report.factors.filter((factor) => factor.status === "scored" && factor.points != null);
+  const advantage = scored
+    .filter((factor) => (factor.points ?? 0) > 0)
+    .sort((left, right) => (right.points ?? 0) - (left.points ?? 0))[0] ?? null;
+  const weakest =
+    [...scored]
+      .filter((factor) => factor.key !== advantage?.key && (factor.ratio ?? 1) < 1)
+      .sort((left, right) => (left.ratio ?? 0) - (right.ratio ?? 0) || (left.points ?? 0) - (right.points ?? 0))[0] ??
+    null;
+  return { advantage, weakest };
 }
 
 function DecisionList({
@@ -464,27 +611,39 @@ function DecisionList({
     <section className="space-y-3">
       <h2 className="text-base font-semibold">{decision}</h2>
       <div className="grid gap-4 lg:grid-cols-3">
-        {suppliers.map((supplier) => {
+        {suppliers.map((supplier, index) => {
           const entry = bySupplier.get(supplier.id) ?? null;
-          const source = supplier.sources[0]?.url ?? supplier.sourceUrl;
+          const source = supplier.sources[0];
+          const sourceUrl = source?.url ?? supplier.sourceUrl;
+          const tone = columnTones[index] ?? columnTones[0];
           return (
             <article key={supplier.id} className="space-y-3 rounded-xl border bg-card p-4">
-              <h3 className="text-sm font-semibold">{supplier.name}</h3>
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <span className={`flex size-5 shrink-0 items-center justify-center rounded-md text-xs ${tone.badge}`}>
+                  {index + 1}
+                </span>
+                <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
+                  {supplier.name}
+                </Link>
+              </h3>
               <div className="flex flex-wrap gap-2">
-                <FavoriteButton supplierId={supplier.id} saved={entry != null} />
+                <FavoriteButton supplierId={supplier.id} saved={entry != null} appearance="bookmark" />
                 {supplier.website ? (
-                  <a href={supplier.website} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium hover:bg-accent">
+                  <a href={supplier.website} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border bg-card px-3 text-sm font-medium hover:bg-accent">
                     {websiteLabel}
                   </a>
                 ) : (
-                  <span className="text-sm text-muted-foreground">{websiteLabel}: {unavailable}</span>
+                  <span className="inline-flex h-8 items-center text-sm text-muted-foreground">{websiteLabel}: {unavailable}</span>
                 )}
-                {source ? (
-                  <a href={source} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium hover:bg-accent">
-                    {sourceLabel}
+              </div>
+              <div className="text-sm">
+                <p className="text-xs text-muted-foreground">{sourceLabel}</p>
+                {sourceUrl ? (
+                  <a href={sourceUrl} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
+                    {source?.title ?? sourceUrl}
                   </a>
                 ) : (
-                  <span className="text-sm text-muted-foreground">{sourceLabel}: {unavailable}</span>
+                  <p className="text-muted-foreground">{unavailable}</p>
                 )}
               </div>
               {entry ? (

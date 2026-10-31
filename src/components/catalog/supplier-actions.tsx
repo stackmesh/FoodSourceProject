@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeftRight, Bookmark, Heart, Pencil } from "lucide-react";
+import { ArrowLeftRight, Bookmark, Heart } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -143,22 +143,6 @@ function FavoriteControl({
     <Button type="submit" variant={saved ? "secondary" : "outline"} size="sm" className={className} disabled={pending}>
       {label}
     </Button>
-  );
-}
-
-export function SaveForNotes({ supplierId }: { supplierId: string }) {
-  const t = useTranslations("Catalog");
-  const [state, action, pending] = useActionState(toggleFavorite, null);
-
-  return (
-    <form action={action}>
-      <input type="hidden" name="supplierId" value={supplierId} />
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>
-        <Pencil />
-        {pending ? t("saving") : t("addNote")}
-      </Button>
-      {state && !state.ok ? <p className="mt-1 text-xs text-destructive">{t("actionFailed")}</p> : null}
-    </form>
   );
 }
 

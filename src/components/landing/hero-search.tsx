@@ -24,26 +24,21 @@ export function HeroSearch() {
     <form
       role="search"
       onSubmit={onSearch}
-      className="mt-8 flex w-full max-w-xl flex-col gap-2 sm:flex-row"
+      className="mt-8 flex w-full max-w-xl items-center rounded-xl border bg-card p-1 shadow-sm"
     >
       <label className="sr-only" htmlFor="landing-search">
         {t("searchLabel")}
       </label>
-      <div className="relative min-w-0 flex-1">
-        <Search
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          id="landing-search"
-          name="q"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t("searchPlaceholder")}
-          className="h-11 bg-card pl-9"
-        />
-      </div>
-      <Button type="submit" className="h-11">
+      <Search aria-hidden className="ml-3 size-4 shrink-0 text-muted-foreground" />
+      <Input
+        id="landing-search"
+        name="q"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={t("searchPlaceholder")}
+        className="h-11 border-0 bg-transparent shadow-none focus-visible:ring-0"
+      />
+      <Button type="submit" className="h-10 shrink-0 rounded-lg px-5">
         {t("searchSubmit")}
       </Button>
     </form>

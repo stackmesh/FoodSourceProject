@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { EmptyState, ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
 import { CompareView } from "@/components/catalog/compare-view";
+import { ExportComparisonButton } from "@/components/catalog/export-comparison";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, matchContextCookieName, parseCompareSlugs, parseMatchContext } from "@/lib/comparison";
 import { getSuppliersBySlugs, getWorkspace } from "@/server/catalog";
@@ -45,24 +46,27 @@ async function Comparison({ locale }: { locale: string }) {
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
   }
 
-  if (!loaded.suppliers.length) {
-    return (
-      <EmptyState
-        title={t("emptyTitle")}
-        text={t("emptyText")}
-        href="/suppliers"
-        action={t("emptyAction")}
-      />
-    );
-  }
-
   return (
-    <CompareView
-      suppliers={loaded.suppliers}
-      workspace={loaded.workspace}
-      locale={locale}
-      context={loaded.context}
-    />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportComparisonButton disabled={loaded.suppliers.length === 0} />
+      </div>
+      {loaded.suppliers.length === 0 ? (
+        <EmptyState
+          title={t("emptyTitle")}
+          text={t("emptyText")}
+          href="/suppliers"
+          action={t("emptyAction")}
+        />
+      ) : (
+        <CompareView
+          suppliers={loaded.suppliers}
+          workspace={loaded.workspace}
+          locale={locale}
+          context={loaded.context}
+        />
+      )}
+    </div>
   );
 }
 

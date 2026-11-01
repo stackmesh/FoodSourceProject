@@ -14,7 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "node prisma/seed.mjs",
     "test:matching": "node --import ./scripts/register-loader.mjs scripts/run-matching-test.mjs",
-    "test:freshness": "node --import ./scripts/register-loader.mjs scripts/run-freshness-test.mjs"
+    "test:freshness": "node --import ./scripts/register-loader.mjs scripts/run-freshness-test.mjs",
+    "test:csv": "node --import ./scripts/register-loader.mjs scripts/run-csv-test.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

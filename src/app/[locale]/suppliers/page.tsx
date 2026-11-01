@@ -1,17 +1,17 @@
-import { Layers } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { CardSkeletonGrid, EmptyState, ErrorState } from "@/components/catalog/chrome";
-import { DiscoveryFilters } from "@/components/catalog/discovery-filters";
+import { ActiveFilters, DiscoveryFilters, DiscoverySort } from "@/components/catalog/discovery-filters";
 import { SupplierCard } from "@/components/catalog/supplier-card";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, parseCompareSlugs } from "@/lib/comparison";
-import { parseDiscoveryQuery, sortOptions, toSearchParams } from "@/lib/discovery-query";
+import { parseDiscoveryQuery, toSearchParams } from "@/lib/discovery-query";
 import { defaultMatchWeights } from "@/server/matching";
 import { requestClock } from "@/lib/today";
 import { getWorkspace, searchSuppliers } from "@/server/catalog";
+import { discoveryPageSize } from "@/server/supplier-search";
 import { DataError } from "@/server/catalog-types";
 
 export async function generateMetadata({
@@ -69,34 +69,37 @@ async function DiscoveryResults({
           cities={result.facets.cities}
           regions={result.facets.regions}
         />
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="inline-flex items-center gap-2 text-sm font-medium">
-              <Layers className="size-4 text-primary" />
-              {t("results", { count: result.total })}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t("sortedBy", {
-                option: t((sortOptions.find((option) => option.value === query.sort) ?? sortOptions[1]).label),
-              })}
-            </p>
-            {result.comparable === false ? (
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">{t("sortNotComparable")}</p>
+            <p className="text-sm font-medium">{t("results", { count: result.total })}</p>
+            {result.total > 0 ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t("showing", {
+                  start: (result.page - 1) * discoveryPageSize + 1,
+                  end: Math.min(result.page * discoveryPageSize, result.total),
+                  total: result.total,
+                })}
+              </p>
             ) : null}
           </div>
-          {result.showScore ? (
-            <p className="max-w-xl text-xs leading-5 text-primary">
-              {t("scoreNote", {
-                product: Math.round(defaultMatchWeights.product * 100),
-                geography: Math.round(defaultMatchWeights.geography * 100),
-                price: Math.round(defaultMatchWeights.price * 100),
-                moq: Math.round(defaultMatchWeights.moq * 100),
-                certification: Math.round(defaultMatchWeights.certification * 100),
-                delivery: Math.round(defaultMatchWeights.delivery * 100),
-              })}
-            </p>
-          ) : null}
+          <DiscoverySort query={query} />
         </div>
+        <ActiveFilters query={query} categories={result.facets.categories} />
+        {result.comparable === false ? (
+          <p className="max-w-xl text-sm text-muted-foreground">{t("sortNotComparable")}</p>
+        ) : null}
+        {result.showScore ? (
+          <p className="max-w-xl text-xs leading-5 text-primary">
+            {t("scoreNote", {
+              product: Math.round(defaultMatchWeights.product * 100),
+              geography: Math.round(defaultMatchWeights.geography * 100),
+              price: Math.round(defaultMatchWeights.price * 100),
+              moq: Math.round(defaultMatchWeights.moq * 100),
+              certification: Math.round(defaultMatchWeights.certification * 100),
+              delivery: Math.round(defaultMatchWeights.delivery * 100),
+            })}
+          </p>
+        ) : null}
         {result.items.length === 0 ? (
           <EmptyState
             title={t("emptyTitle")}

@@ -15,7 +15,6 @@ import { isNavItemActive, navigation } from "@/config/navigation";
 import { siteConfig } from "@/config/site";
 import { Link, usePathname } from "@/i18n/navigation";
 import { CompareMembershipSync } from "@/components/catalog/compare-membership";
-import { LanguageSwitcher } from "./language-switcher";
 
 const headerLinks = navigation.filter((item) =>
   item.key === "overview" ||
@@ -72,7 +71,6 @@ function HeaderBar({ pathname }: { pathname: string | null }) {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <LanguageSwitcher />
           <Button asChild className="hidden sm:inline-flex">
             <Link href="/suppliers">{t("findSuppliers")}</Link>
           </Button>

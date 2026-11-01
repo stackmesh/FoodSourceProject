@@ -73,7 +73,8 @@
   },
   "Shell": {
     "demoBanner": "Demonstration data. Information on this platform is not confirmed commercial fact.",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "backToTop": "Back to top"
   },
   "Pages": {
     "overview": {
@@ -99,12 +100,12 @@
     },
     "categories": {
       "title": "Categories",
-      "description": "Product categories in Russian and English.",
+      "description": "Product categories in the catalog.",
       "empty": "Categories are not loaded yet."
     },
     "settings": {
       "title": "Settings",
-      "description": "Interface language is switched from the header. Accounts are not connected in this version.",
+      "description": "Accounts are not connected in this version.",
       "empty": "There are no workspace preferences to change yet."
     }
   },

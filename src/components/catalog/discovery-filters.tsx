@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { ChevronDown, Info, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,12 +35,10 @@ export function DiscoveryFilters({
   const t = useTranslations("Discovery");
   const catalog = useTranslations("Catalog");
   const freshness = useTranslations("Freshness");
-  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
-  const categoryName = (item: { nameRu: string; nameEn: string }) =>
-    locale === "en" ? item.nameEn : item.nameRu;
+  const categoryName = (item: { nameRu: string }) => item.nameRu;
 
   function apply(formData: FormData) {
     const params = new URLSearchParams();

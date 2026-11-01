@@ -1,20 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ExportComparisonButton({ disabled }: { disabled: boolean }) {
   const t = useTranslations("Compare");
-  const locale = useLocale();
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   async function download() {
     setState("loading");
     try {
-      const href = locale === "en" ? "/en/compare/export" : "/compare/export";
-      const response = await fetch(href, { headers: { Accept: "text/csv" } });
+      const response = await fetch("/compare/export", { headers: { Accept: "text/csv" } });
       if (!response.ok) throw new Error("export failed");
       const blob = await response.blob();
       const filename = filenameFrom(response.headers.get("Content-Disposition"));

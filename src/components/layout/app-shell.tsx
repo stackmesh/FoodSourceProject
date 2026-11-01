@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
+import { BackToTop } from "./back-to-top";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader, SiteHeaderFallback } from "./site-header";
 
@@ -24,6 +25,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      <BackToTop />
     </div>
   );
 }

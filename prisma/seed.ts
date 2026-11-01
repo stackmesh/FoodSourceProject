@@ -19,6 +19,7 @@ type ProductSeed = {
   moq: number | null;
   unit: string;
   delivery: string | null;
+  image: string;
 };
 
 type SupplierSeed = {
@@ -46,8 +47,8 @@ const suppliers: SupplierSeed[] = [
     city: "Казань",
     region: "Республика Татарстан",
     products: [
-      { category: "meat", name: "Тушка цыплёнка-бройлера", price: 246, moq: 100, unit: "кг", delivery: delivery.region },
-      { category: "meat", name: "Филе грудки", price: 390, moq: 50, unit: "кг", delivery: delivery.region },
+      { category: "meat", name: "Тушка цыплёнка-бройлера", price: 246, moq: 100, unit: "кг", delivery: delivery.region, image: "/images/products/broiler-chicken.jpg" },
+      { category: "meat", name: "Филе грудки", price: 390, moq: 50, unit: "кг", delivery: delivery.region, image: "/images/products/chicken-breast-fillet.jpg" },
     ],
     certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
   },
@@ -58,8 +59,8 @@ const suppliers: SupplierSeed[] = [
     city: "Москва",
     region: "Московская область",
     products: [
-      { category: "meat", name: "Говядина лопатка", price: 690, moq: 80, unit: "кг", delivery: delivery.city },
-      { category: "meat", name: "Свинина окорок", price: 420, moq: 80, unit: "кг", delivery: delivery.city },
+      { category: "meat", name: "Говядина лопатка", price: 690, moq: 80, unit: "кг", delivery: delivery.city, image: "/images/products/beef-shoulder.jpg" },
+      { category: "meat", name: "Свинина окорок", price: 420, moq: 80, unit: "кг", delivery: delivery.city, image: "/images/products/pork-ham.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
@@ -70,8 +71,8 @@ const suppliers: SupplierSeed[] = [
     city: "Ростов-на-Дону",
     region: "Ростовская область",
     products: [
-      { category: "meat", name: "Говядина охлаждённая", price: 640, moq: 150, unit: "кг", delivery: delivery.federal },
-      { category: "frozen", name: "Фарш говяжий замороженный", price: 410, moq: 200, unit: "кг", delivery: delivery.federal },
+      { category: "meat", name: "Говядина охлаждённая", price: 640, moq: 150, unit: "кг", delivery: delivery.federal, image: "/images/products/chilled-beef.jpg" },
+      { category: "frozen", name: "Фарш говяжий замороженный", price: 410, moq: 200, unit: "кг", delivery: delivery.federal, image: "/images/products/frozen-beef-mince.jpg" },
     ],
     certs: [],
   },
@@ -82,8 +83,8 @@ const suppliers: SupplierSeed[] = [
     city: "Екатеринбург",
     region: "Свердловская область",
     products: [
-      { category: "meat", name: "Колбаса варёная", price: 360, moq: 40, unit: "кг", delivery: delivery.region },
-      { category: "meat", name: "Сосиски молочные", price: 310, moq: 30, unit: "кг", delivery: delivery.region },
+      { category: "meat", name: "Колбаса варёная", price: 360, moq: 40, unit: "кг", delivery: delivery.region, image: "/images/products/cooked-sausage.jpg" },
+      { category: "meat", name: "Сосиски молочные", price: 310, moq: 30, unit: "кг", delivery: delivery.region, image: "/images/products/milk-sausages.jpg" },
     ],
     certs: [{ name: "Демо: ХАССП", status: "EXPIRED" }],
   },
@@ -94,8 +95,8 @@ const suppliers: SupplierSeed[] = [
     city: "Санкт-Петербург",
     region: "Ленинградская область",
     products: [
-      { category: "fish", name: "Лосось слабосолёный", price: 1480, moq: 20, unit: "кг", delivery: delivery.federal },
-      { category: "fish", name: "Креветка 16/20", price: 980, moq: 10, unit: "кг", delivery: delivery.federal },
+      { category: "fish", name: "Лосось слабосолёный", price: 1480, moq: 20, unit: "кг", delivery: delivery.federal, image: "/images/products/salted-salmon.jpg" },
+      { category: "fish", name: "Креветка 16/20", price: 980, moq: 10, unit: "кг", delivery: delivery.federal, image: "/images/products/shrimp.jpg" },
     ],
     certs: [{ name: "Демо: ветеринарное свидетельство", status: "UNVERIFIED" }],
   },
@@ -106,8 +107,8 @@ const suppliers: SupplierSeed[] = [
     city: "Краснодар",
     region: "Краснодарский край",
     products: [
-      { category: "fish", name: "Форель потрошёная", price: 890, moq: 25, unit: "кг", delivery: delivery.region },
-      { category: "fish", name: "Минтай филе", price: 320, moq: 40, unit: "кг", delivery: delivery.region },
+      { category: "fish", name: "Форель потрошёная", price: 890, moq: 25, unit: "кг", delivery: delivery.region, image: "/images/products/gutted-trout.jpg" },
+      { category: "fish", name: "Минтай филе", price: 320, moq: 40, unit: "кг", delivery: delivery.region, image: "/images/products/pollock-fillet.jpg" },
     ],
     certs: [],
   },
@@ -118,8 +119,8 @@ const suppliers: SupplierSeed[] = [
     city: "Новосибирск",
     region: "Новосибирская область",
     products: [
-      { category: "fish", name: "Минтай тушка", price: 210, moq: 100, unit: "кг", delivery: delivery.region },
-      { category: "frozen", name: "Рыбные котлеты", price: 280, moq: 50, unit: "кг", delivery: delivery.pickup },
+      { category: "fish", name: "Минтай тушка", price: 210, moq: 100, unit: "кг", delivery: delivery.region, image: "/images/products/pollock-whole.jpg" },
+      { category: "frozen", name: "Рыбные котлеты", price: 280, moq: 50, unit: "кг", delivery: delivery.pickup, image: "/images/products/fish-cutlets.jpg" },
     ],
     certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
   },
@@ -130,8 +131,8 @@ const suppliers: SupplierSeed[] = [
     city: "Краснодар",
     region: "Краснодарский край",
     products: [
-      { category: "produce", name: "Томаты розовые", price: 165, moq: 200, unit: "кг", delivery: delivery.federal },
-      { category: "produce", name: "Огурцы гладкие", price: 140, moq: 200, unit: "кг", delivery: delivery.federal },
+      { category: "produce", name: "Томаты розовые", price: 165, moq: 200, unit: "кг", delivery: delivery.federal, image: "/images/products/pink-tomatoes.jpg" },
+      { category: "produce", name: "Огурцы гладкие", price: 140, moq: 200, unit: "кг", delivery: delivery.federal, image: "/images/products/smooth-cucumbers.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
@@ -142,8 +143,8 @@ const suppliers: SupplierSeed[] = [
     city: "Москва",
     region: "Московская область",
     products: [
-      { category: "produce", name: "Салат айсберг", price: 190, moq: 40, unit: "кг", delivery: delivery.city },
-      { category: "produce", name: "Зелень ассорти", price: 420, moq: 10, unit: "кг", delivery: delivery.city },
+      { category: "produce", name: "Салат айсберг", price: 190, moq: 40, unit: "кг", delivery: delivery.city, image: "/images/products/iceberg-lettuce.jpg" },
+      { category: "produce", name: "Зелень ассорти", price: 420, moq: 10, unit: "кг", delivery: delivery.city, image: "/images/products/mixed-herbs.jpg" },
     ],
     certs: [],
   },
@@ -154,8 +155,8 @@ const suppliers: SupplierSeed[] = [
     city: "Нижний Новгород",
     region: "Нижегородская область",
     products: [
-      { category: "produce", name: "Яблоки сезонные", price: 95, moq: 300, unit: "кг", delivery: delivery.region },
-      { category: "produce", name: "Картофель мытый", price: 42, moq: 500, unit: "кг", delivery: delivery.region },
+      { category: "produce", name: "Яблоки сезонные", price: 95, moq: 300, unit: "кг", delivery: delivery.region, image: "/images/products/seasonal-apples.jpg" },
+      { category: "produce", name: "Картофель мытый", price: 42, moq: 500, unit: "кг", delivery: delivery.region, image: "/images/products/washed-potatoes.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
@@ -166,8 +167,8 @@ const suppliers: SupplierSeed[] = [
     city: "Казань",
     region: "Республика Татарстан",
     products: [
-      { category: "produce", name: "Клубника", price: 480, moq: 20, unit: "кг", delivery: null },
-      { category: "frozen", name: "Клубника замороженная", price: 310, moq: 30, unit: "кг", delivery: delivery.pickup },
+      { category: "produce", name: "Клубника", price: 480, moq: 20, unit: "кг", delivery: null, image: "/images/products/strawberries.jpg" },
+      { category: "frozen", name: "Клубника замороженная", price: 310, moq: 30, unit: "кг", delivery: delivery.pickup, image: "/images/products/frozen-strawberries.jpg" },
     ],
     certs: [],
   },
@@ -178,8 +179,8 @@ const suppliers: SupplierSeed[] = [
     city: "Санкт-Петербург",
     region: "Ленинградская область",
     products: [
-      { category: "dairy", name: "Молоко 3,2%", price: 78, moq: 100, unit: "л", delivery: delivery.region },
-      { category: "dairy", name: "Сметана 20%", price: 210, moq: 40, unit: "кг", delivery: delivery.region },
+      { category: "dairy", name: "Молоко 3,2%", price: 78, moq: 100, unit: "л", delivery: delivery.region, image: "/images/products/milk.jpg" },
+      { category: "dairy", name: "Сметана 20%", price: 210, moq: 40, unit: "кг", delivery: delivery.region, image: "/images/products/sour-cream.jpg" },
     ],
     certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
   },
@@ -190,8 +191,8 @@ const suppliers: SupplierSeed[] = [
     city: "Новосибирск",
     region: "Новосибирская область",
     products: [
-      { category: "dairy", name: "Творог 5%", price: 260, moq: 30, unit: "кг", delivery: delivery.region },
-      { category: "dairy", name: "Сыр полутвёрдый", price: 620, moq: 15, unit: "кг", delivery: delivery.region },
+      { category: "dairy", name: "Творог 5%", price: 260, moq: 30, unit: "кг", delivery: delivery.region, image: "/images/products/cottage-cheese.jpg" },
+      { category: "dairy", name: "Сыр полутвёрдый", price: 620, moq: 15, unit: "кг", delivery: delivery.region, image: "/images/products/semi-hard-cheese.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "EXPIRED" }],
   },
@@ -202,8 +203,8 @@ const suppliers: SupplierSeed[] = [
     city: "Казань",
     region: "Республика Татарстан",
     products: [
-      { category: "dairy", name: "Кефир 1%", price: 72, moq: 80, unit: "л", delivery: delivery.city },
-      { category: "dairy", name: "Масло сливочное 82,5%", price: 780, moq: 10, unit: "кг", delivery: delivery.city },
+      { category: "dairy", name: "Кефир 1%", price: 72, moq: 80, unit: "л", delivery: delivery.city, image: "/images/products/kefir.jpg" },
+      { category: "dairy", name: "Масло сливочное 82,5%", price: 780, moq: 10, unit: "кг", delivery: delivery.city, image: "/images/products/butter.jpg" },
     ],
     certs: [],
   },
@@ -214,9 +215,9 @@ const suppliers: SupplierSeed[] = [
     city: "Москва",
     region: "Московская область",
     products: [
-      { category: "grocery", name: "Рис круглозёрный", price: 92, moq: 200, unit: "кг", delivery: delivery.federal },
-      { category: "grocery", name: "Мука пшеничная высший сорт", price: 48, moq: 400, unit: "кг", delivery: delivery.federal },
-      { category: "grocery", name: "Масло подсолнечное", price: 130, moq: 100, unit: "л", delivery: delivery.federal },
+      { category: "grocery", name: "Рис круглозёрный", price: 92, moq: 200, unit: "кг", delivery: delivery.federal, image: "/images/products/round-grain-rice.jpg" },
+      { category: "grocery", name: "Мука пшеничная высший сорт", price: 48, moq: 400, unit: "кг", delivery: delivery.federal, image: "/images/products/wheat-flour.jpg" },
+      { category: "grocery", name: "Масло подсолнечное", price: 130, moq: 100, unit: "л", delivery: delivery.federal, image: "/images/products/sunflower-oil.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
@@ -227,8 +228,8 @@ const suppliers: SupplierSeed[] = [
     city: "Санкт-Петербург",
     region: "Ленинградская область",
     products: [
-      { category: "frozen", name: "Овощная смесь", price: 145, moq: 80, unit: "кг", delivery: delivery.federal },
-      { category: "frozen", name: "Картофель фри", price: 160, moq: 60, unit: "кг", delivery: delivery.federal },
+      { category: "frozen", name: "Овощная смесь", price: 145, moq: 80, unit: "кг", delivery: delivery.federal, image: "/images/products/mixed-vegetables.jpg" },
+      { category: "frozen", name: "Картофель фри", price: 160, moq: 60, unit: "кг", delivery: delivery.federal, image: "/images/products/french-fries.jpg" },
     ],
     certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
   },
@@ -239,8 +240,8 @@ const suppliers: SupplierSeed[] = [
     city: "Москва",
     region: "Московская область",
     products: [
-      { category: "drinks", name: "Вода негазированная 19 л", price: 280, moq: 20, unit: "шт", delivery: delivery.city },
-      { category: "drinks", name: "Сок яблочный 1 л", price: 95, moq: 48, unit: "шт", delivery: delivery.city },
+      { category: "drinks", name: "Вода негазированная 19 л", price: 280, moq: 20, unit: "шт", delivery: delivery.city, image: "/images/products/still-water.jpg" },
+      { category: "drinks", name: "Сок яблочный 1 л", price: 95, moq: 48, unit: "шт", delivery: delivery.city, image: "/images/products/apple-juice.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },
@@ -251,8 +252,8 @@ const suppliers: SupplierSeed[] = [
     city: "Казань",
     region: "Республика Татарстан",
     products: [
-      { category: "packaging", name: "Контейнер ПЭТ 500 мл", price: 6.5, moq: 1000, unit: "шт", delivery: delivery.federal },
-      { category: "packaging", name: "Пакет бумажный", price: 9, moq: 500, unit: "шт", delivery: delivery.federal },
+      { category: "packaging", name: "Контейнер ПЭТ 500 мл", price: 6.5, moq: 1000, unit: "шт", delivery: delivery.federal, image: "/images/products/pet-container.jpg" },
+      { category: "packaging", name: "Пакет бумажный", price: 9, moq: 500, unit: "шт", delivery: delivery.federal, image: "/images/products/paper-bag.jpg" },
     ],
     certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
   },

@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
 import { EmptyState, ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
 import { SupplierBadges } from "@/components/catalog/badges";
+import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
 import { ContactTracking, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Link } from "@/i18n/navigation";
@@ -92,7 +93,15 @@ async function FavoriteList({
         {visible.map(({ supplier, entry }) => (
           <li key={supplier.id} className={`rounded-xl border bg-card p-4 ${isOverdueFollowUp(entry.nextFollowUpOn, today) ? "border-amber-300" : ""}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
+              <div className="flex min-w-0 items-start gap-3">
+                <SupplierLogo
+                  supplier={supplier}
+                  size={48}
+                  demoAlt={catalog("logoAlt", { name: supplier.name })}
+                  realAlt={catalog("logoAltReal", { name: supplier.name })}
+                  missingAlt={catalog("logoMissing", { name: supplier.name })}
+                />
+                <div className="min-w-0">
                 <SupplierBadges supplier={supplier} />
                 <h2 className="mt-3 text-base font-semibold">
                   <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
@@ -111,6 +120,7 @@ async function FavoriteList({
                     {isOverdueFollowUp(entry.nextFollowUpOn, today) ? ` · ${catalog("overdue")}` : ""}
                   </p>
                 ) : null}
+                </div>
               </div>
               <FavoriteButton supplierId={supplier.id} saved />
             </div>

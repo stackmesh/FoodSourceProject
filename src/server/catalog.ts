@@ -9,6 +9,7 @@ import { matchSuppliers, type MatchContext, type MatchReport } from "@/server/ma
 import { discoveryPageSize, queryMatchCohort, querySupplierIds, querySupplierPage } from "@/server/supplier-search";
 import {
   DataError,
+  type CatalogProduct,
   type CatalogSupplier,
   type WorkspaceEntry,
   type WorkspaceNote,
@@ -57,6 +58,7 @@ function mapSupplier(row: {
   dataType: CatalogSupplier["dataType"];
   verificationStatus: CatalogSupplier["verificationStatus"];
   lastVerifiedAt: Date | null;
+  logoUrl: string | null;
   createdAt: Date;
   updatedAt: Date | null;
   products: Array<{
@@ -67,6 +69,8 @@ function mapSupplier(row: {
     minimumOrderQuantity: { toString(): string } | null;
     unit: string | null;
     deliveryNotes: string | null;
+    imageUrl: string | null;
+    dataType: CatalogProduct["dataType"];
     priceUpdatedAt: Date | null;
     category: { slug: string; nameRu: string; nameEn: string };
   }>;
@@ -101,6 +105,8 @@ function mapSupplier(row: {
     moq: asNumber(product.minimumOrderQuantity),
     unit: product.unit,
     deliveryNotes: product.deliveryNotes,
+    imageUrl: product.imageUrl,
+    dataType: product.dataType,
     priceUpdatedAt: product.priceUpdatedAt?.toISOString() ?? null,
   }));
   const prices = products.flatMap((product) => (product.price == null ? [] : [product.price]));
@@ -121,6 +127,7 @@ function mapSupplier(row: {
     dataType: row.dataType,
     verificationStatus: row.verificationStatus,
     lastVerifiedAt: row.lastVerifiedAt?.toISOString() ?? null,
+    logoUrl: row.logoUrl,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt?.toISOString() ?? null,
     products,

@@ -85,6 +85,7 @@ try {
         moq: product.moq,
         unit: product.unit,
         delivery: product.delivery,
+        image: product.image,
         dataType: "DEMO",
       })),
       contacts: [
@@ -168,8 +169,8 @@ try {
 async function upsertSupplier(db, supplier, categoryIds) {
   const saved = await db.query(
     `INSERT INTO "Supplier"
-      ("id", "name", "slug", "description", "supplierType", "city", "region", "country", "address", "website", "sourceUrl", "dataType", "verificationStatus", "lastVerifiedAt", "isActive", "createdAt", "updatedAt")
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'Россия',$8,$9,$10,$11,$12,$13,true,$14,NOW())
+      ("id", "name", "slug", "description", "supplierType", "city", "region", "country", "address", "website", "sourceUrl", "dataType", "verificationStatus", "lastVerifiedAt", "logoUrl", "isActive", "createdAt", "updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'Россия',$8,$9,$10,$11,$12,$13,$14,true,$15,NOW())
      ON CONFLICT ("slug") DO UPDATE SET
        "name" = EXCLUDED."name",
        "description" = EXCLUDED."description",
@@ -183,6 +184,7 @@ async function upsertSupplier(db, supplier, categoryIds) {
        "dataType" = EXCLUDED."dataType",
        "verificationStatus" = EXCLUDED."verificationStatus",
        "lastVerifiedAt" = EXCLUDED."lastVerifiedAt",
+       "logoUrl" = EXCLUDED."logoUrl",
        "isActive" = true,
        "updatedAt" = NOW()
      RETURNING "id"`,
@@ -200,6 +202,7 @@ async function upsertSupplier(db, supplier, categoryIds) {
       supplier.dataType,
       supplier.verificationStatus,
       supplier.lastVerifiedAt,
+      supplier.dataType === "DEMO" ? `/images/suppliers/${supplier.slug}.jpg` : null,
       supplier.createdAt,
     ],
   );
@@ -215,8 +218,8 @@ async function upsertSupplier(db, supplier, categoryIds) {
     if (!categoryId) throw new Error(`Unknown category ${product.category} for ${supplier.slug}`);
     await db.query(
       `INSERT INTO "SupplierProduct"
-        ("id", "supplierId", "categoryId", "name", "description", "estimatedPrice", "currency", "minimumOrderQuantity", "unit", "deliveryNotes", "isAvailable", "dataType", "priceUpdatedAt", "updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,'RUB',$7,$8,$9,$10,$11,$12,NOW())`,
+        ("id", "supplierId", "categoryId", "name", "description", "estimatedPrice", "currency", "minimumOrderQuantity", "unit", "deliveryNotes", "imageUrl", "isAvailable", "dataType", "priceUpdatedAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,'RUB',$7,$8,$9,$10,$11,$12,$13,NOW())`,
       [
         idFor(`product:${supplier.slug}:${product.name}`),
         supplierId,
@@ -227,6 +230,7 @@ async function upsertSupplier(db, supplier, categoryIds) {
         product.moq,
         product.unit,
         product.delivery,
+        product.image ?? null,
         supplier.dataType === "DEMO" ? true : null,
         product.dataType,
         product.price == null ? null : supplier.createdAt,

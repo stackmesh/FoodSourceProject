@@ -1,4 +1,5 @@
 import { CertificateStatus } from "@/components/catalog/badges";
+import { ProductPhoto, SupplierLogo } from "@/components/catalog/catalog-media";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
 import { supplierCertificateMark, type CertificateMark } from "@/lib/certificate-mark";
 import { ContactStatusForm, NoteEditor } from "@/components/catalog/workspace-forms";
@@ -63,6 +64,7 @@ export async function CompareView({
             unavailable={catalog("unavailable")}
             demo={catalog("demo")}
             verification={catalog(`verification.${supplier.verificationStatus}`)}
+            catalog={catalog}
             t={t}
           />
         ))}
@@ -81,6 +83,13 @@ export async function CompareView({
                       <span className={`flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold ${tone.badge}`}>
                         {index + 1}
                       </span>
+                      <SupplierLogo
+                        supplier={supplier}
+                        size={36}
+                        demoAlt={catalog("logoAlt", { name: supplier.name })}
+                        realAlt={catalog("logoAltReal", { name: supplier.name })}
+                        missingAlt={catalog("logoMissing", { name: supplier.name })}
+                      />
                       <Link href={`/suppliers/${supplier.slug}`} className="font-semibold hover:text-primary">
                         {supplier.name}
                       </Link>
@@ -105,7 +114,9 @@ export async function CompareView({
                 <th className="px-4 py-3 text-left align-top font-medium text-muted-foreground">{row.label}</th>
                 {row.cells.map((cell, index) => (
                   <td key={`${row.key}-${suppliers[index]?.id}`} className="px-4 py-3 align-top">
-                    {row.key === "verification" ? (
+                    {row.key === "products" ? (
+                      <ProductCompareCell supplier={suppliers[index]} locale={locale} catalog={catalog} cell={cell} />
+                    ) : row.key === "verification" ? (
                       <VerificationCell supplier={suppliers[index]} label={cell.text} />
                     ) : (
                       <CellBody cell={cell} />
@@ -124,9 +135,50 @@ export async function CompareView({
         websiteLabel={t("website")}
         sourceLabel={t("source")}
         unavailable={catalog("unavailable")}
+        catalog={catalog}
         saveFirst={profile("saveFirst")}
       />
     </div>
+  );
+}
+
+function ProductCompareCell({
+  supplier,
+  locale,
+  catalog,
+  cell,
+}: {
+  supplier: CatalogSupplier | undefined;
+  locale: string;
+  catalog: Awaited<ReturnType<typeof getTranslations>>;
+  cell: Cell;
+}) {
+  const categoryKey = locale === "en" ? "categoryNameEn" : "categoryNameRu";
+  const products = supplier?.products.slice(0, 4) ?? [];
+  return (
+    <>
+      {products.length ? (
+        <ul className="space-y-2">
+          {products.map((product) => (
+            <li key={product.id} className="flex items-center gap-2">
+              <ProductPhoto
+                product={product}
+                size={48}
+                demoAlt={catalog("productAlt", { name: product.name })}
+                realAlt={catalog("productAltReal", { name: product.name })}
+                missingAlt={catalog("productMissing", { name: product.name })}
+                demoMark={catalog("demoMark")}
+              />
+              <span className="min-w-0">
+                {product.name}
+                <span className="mt-0.5 block text-xs text-muted-foreground">{product[categoryKey]}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <CellBody cell={{ ...cell, text: products.length ? "" : cell.text }} />
+    </>
   );
 }
 
@@ -414,6 +466,7 @@ function SupplierSummary({
   unavailable,
   demo,
   verification,
+  catalog,
   t,
 }: {
   supplier: CatalogSupplier;
@@ -423,6 +476,7 @@ function SupplierSummary({
   unavailable: string;
   demo: string;
   verification: string;
+  catalog: Awaited<ReturnType<typeof getTranslations>>;
   t: Awaited<ReturnType<typeof getTranslations>>;
 }) {
   const tone = columnTones[index] ?? columnTones[0];
@@ -435,6 +489,13 @@ function SupplierSummary({
         <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold ${tone.badge}`}>
           {index + 1}
         </span>
+        <SupplierLogo
+          supplier={supplier}
+          size={40}
+          demoAlt={catalog("logoAlt", { name: supplier.name })}
+          realAlt={catalog("logoAltReal", { name: supplier.name })}
+          missingAlt={catalog("logoMissing", { name: supplier.name })}
+        />
         <h2 className="min-w-0 flex-1 text-sm font-semibold">
           <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
             {supplier.name}
@@ -575,6 +636,7 @@ function DecisionList({
   websiteLabel,
   sourceLabel,
   unavailable,
+  catalog,
   saveFirst,
 }: {
   suppliers: CatalogSupplier[];
@@ -583,6 +645,7 @@ function DecisionList({
   websiteLabel: string;
   sourceLabel: string;
   unavailable: string;
+  catalog: Awaited<ReturnType<typeof getTranslations>>;
   saveFirst: string;
 }) {
   const bySupplier = new Map(workspace.map((entry) => [entry.supplierId, entry]));
@@ -602,6 +665,13 @@ function DecisionList({
                 <span className={`flex size-5 shrink-0 items-center justify-center rounded-md text-xs ${tone.badge}`}>
                   {index + 1}
                 </span>
+                <SupplierLogo
+                  supplier={supplier}
+                  size={36}
+                  demoAlt={catalog("logoAlt", { name: supplier.name })}
+                  realAlt={catalog("logoAltReal", { name: supplier.name })}
+                  missingAlt={catalog("logoMissing", { name: supplier.name })}
+                />
                 <Link href={`/suppliers/${supplier.slug}`} className="hover:text-primary">
                   {supplier.name}
                 </Link>

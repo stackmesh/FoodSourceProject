@@ -1,4 +1,5 @@
 import { CertificateStatus } from "@/components/catalog/badges";
+import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
 import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
@@ -117,14 +118,23 @@ export async function SupplierCard({
 
   return (
     <article className="flex h-full flex-col rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold tracking-tight">
-          <Link href={profileHref} className="truncate hover:text-primary">
-            {supplier.name}
-          </Link>
-          <NameShield status={supplier.verificationStatus} />
-        </h2>
-        <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
+      <div className="flex items-start gap-3">
+        <SupplierLogo
+          supplier={supplier}
+          size={48}
+          demoAlt={t("logoAlt", { name: supplier.name })}
+          realAlt={t("logoAltReal", { name: supplier.name })}
+          missingAlt={t("logoMissing", { name: supplier.name })}
+        />
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+          <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold tracking-tight">
+            <Link href={profileHref} className="truncate hover:text-primary">
+              {supplier.name}
+            </Link>
+            <NameShield status={supplier.verificationStatus} />
+          </h2>
+          <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
+        </div>
       </div>
       <div className="mt-2 grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-x-6">
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground md:col-start-1 md:row-start-1">

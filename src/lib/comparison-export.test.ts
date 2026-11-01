@@ -74,6 +74,7 @@ function supplier(patch: Partial<CatalogSupplier> & Pick<CatalogSupplier, "id" |
     address: null,
     website: null,
     sourceUrl: null,
+    logoUrl: null,
     dataType: "DEMO",
     verificationStatus: "UNVERIFIED",
     lastVerifiedAt: null,
@@ -101,6 +102,8 @@ function product(name: string, price: number | null, unit: string, moq: number |
     moq,
     unit,
     deliveryNotes: null,
+    imageUrl: null,
+    dataType: "DEMO",
     priceUpdatedAt: null,
   };
 }

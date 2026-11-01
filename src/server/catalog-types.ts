@@ -20,6 +20,8 @@ export type CatalogProduct = {
   moq: number | null;
   unit: string | null;
   deliveryNotes: string | null;
+  imageUrl: string | null;
+  dataType: DataType;
   priceUpdatedAt: string | null;
 };
 
@@ -65,6 +67,7 @@ export type CatalogSupplier = {
   dataType: DataType;
   verificationStatus: VerificationStatus;
   lastVerifiedAt: string | null;
+  logoUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
   products: CatalogProduct[];

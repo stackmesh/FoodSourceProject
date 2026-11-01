@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
+import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { ErrorState, PanelSkeleton } from "@/components/catalog/chrome";
 import { RefreshDashboard } from "@/components/catalog/refresh-dashboard";
 import { Link } from "@/i18n/navigation";
@@ -61,6 +62,7 @@ export default async function DashboardPage({
 
 async function DashboardContent({ locale }: { locale: string }) {
   const t = await getTranslations("Dashboard");
+  const catalog = await getTranslations("Catalog");
   const data = await loadDashboard();
 
   if (!data) {
@@ -114,11 +116,13 @@ async function DashboardContent({ locale }: { locale: string }) {
                     href={`/suppliers/${supplier.slug}`}
                     className="flex items-center gap-3 py-3 hover:text-primary"
                   >
-                    <span
-                      className={`flex size-10 shrink-0 items-center justify-center rounded-xl text-xs font-semibold ${avatarTone(supplier.slug)}`}
-                    >
-                      {initials(supplier.name)}
-                    </span>
+                    <SupplierLogo
+                      supplier={supplier}
+                      size={40}
+                      demoAlt={catalog("logoAlt", { name: supplier.name })}
+                      realAlt={catalog("logoAltReal", { name: supplier.name })}
+                      missingAlt={catalog("logoMissing", { name: supplier.name })}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-foreground">{supplier.name}</span>
                       {place ? (
@@ -178,34 +182,6 @@ async function DashboardContent({ locale }: { locale: string }) {
 
 function formatShare(value: number, locale: string) {
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value)}%`;
-}
-
-function initials(name: string) {
-  const words = name
-    .replace(/[«»"']/g, " ")
-    .split(/[\s-]+/)
-    .map((word) => word.trim())
-    .filter(Boolean)
-    .filter((word) => !(word.length <= 5 && word === word.toUpperCase() && /^[A-ZА-ЯЁ0-9]+$/.test(word)));
-  const source = words.length ? words : [name];
-  const first = source[0] ?? name;
-  const second = source[1];
-  if (second?.[0]) return `${first[0] ?? ""}${second[0]}`.toLocaleUpperCase("ru");
-  const internal = first.slice(1).match(/[A-ZА-ЯЁ]/);
-  if (internal?.[0] && first[0]) return `${first[0]}${internal[0]}`.toLocaleUpperCase("ru");
-  return (first[0] ?? "?").toLocaleUpperCase("ru");
-}
-
-function avatarTone(slug: string) {
-  const tones = [
-    "bg-emerald-50 text-emerald-700",
-    "bg-sky-50 text-sky-700",
-    "bg-amber-50 text-amber-800",
-    "bg-violet-50 text-violet-700",
-    "bg-cyan-50 text-cyan-700",
-  ];
-  const index = [...slug].reduce((total, char) => total + char.charCodeAt(0), 0) % tones.length;
-  return tones[index] ?? tones[0];
 }
 
 function categoryIcon(slug: string): LucideIcon {

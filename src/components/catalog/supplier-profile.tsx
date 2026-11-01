@@ -1,4 +1,5 @@
 import { CertificationBadge, SupplierBadges } from "@/components/catalog/badges";
+import { ProductPhoto, SupplierLogo } from "@/components/catalog/catalog-media";
 import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
 import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
@@ -14,26 +15,19 @@ import type { CatalogContact, CatalogSupplier, WorkspaceEntry } from "@/server/c
 import type { MatchReport } from "@/server/matching";
 import { getTranslations } from "next-intl/server";
 import {
-  Apple,
-  Beef,
   Building2,
   ChevronLeft,
   Coins,
-  CupSoda,
   ExternalLink,
   FileText,
-  Fish,
   MapPin,
-  Milk,
   Package,
   Phone,
   Shield,
-  Snowflake,
   Star,
   Tag,
   TriangleAlert,
   Truck,
-  Wheat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -91,7 +85,16 @@ export async function SupplierProfile({
         {t("back")}
       </Link>
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-3">
+          <SupplierLogo
+            supplier={supplier}
+            size={72}
+            demoAlt={catalog("logoAlt", { name: supplier.name })}
+            realAlt={catalog("logoAltReal", { name: supplier.name })}
+            missingAlt={catalog("logoMissing", { name: supplier.name })}
+            demoMark={catalog("demoMark")}
+          />
+          <div className="min-w-0">
           <div className="flex items-center gap-1">
             <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{supplier.name}</h1>
             <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
@@ -102,6 +105,7 @@ export async function SupplierProfile({
           </p>
           <div className="mt-3">
             <SupplierBadges supplier={supplier} variant="profile" />
+          </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -207,13 +211,16 @@ export async function SupplierProfile({
             {supplier.products.length ? (
               <ul className="mt-2 divide-y">
                 {supplier.products.map((product) => {
-                  const thumb = categoryThumb(product.categorySlug);
-                  const ThumbIcon = thumb.icon;
                   return (
                     <li key={product.id} className="flex gap-3 py-4">
-                      <span className={`flex size-12 shrink-0 items-center justify-center rounded-lg ${thumb.tone}`}>
-                        <ThumbIcon className="size-5" />
-                      </span>
+                      <ProductPhoto
+                        product={product}
+                        size={80}
+                        demoAlt={catalog("productAlt", { name: product.name })}
+                        realAlt={catalog("productAltReal", { name: product.name })}
+                        missingAlt={catalog("productMissing", { name: product.name })}
+                        demoMark={catalog("demoMark")}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-medium">{product.name}</p>
@@ -460,20 +467,6 @@ function ProductFact({ label, value, missing }: { label: string; value: string; 
       <dd className={`mt-0.5 text-sm ${missing ? "text-muted-foreground" : "font-medium"}`}>{value}</dd>
     </div>
   );
-}
-
-function categoryThumb(slug: string): { icon: LucideIcon; tone: string } {
-  const icons: Record<string, { icon: LucideIcon; tone: string }> = {
-    meat: { icon: Beef, tone: "bg-rose-50 text-rose-600" },
-    fish: { icon: Fish, tone: "bg-sky-50 text-sky-600" },
-    produce: { icon: Apple, tone: "bg-emerald-50 text-emerald-600" },
-    dairy: { icon: Milk, tone: "bg-violet-50 text-violet-600" },
-    grocery: { icon: Wheat, tone: "bg-amber-50 text-amber-700" },
-    frozen: { icon: Snowflake, tone: "bg-cyan-50 text-cyan-600" },
-    drinks: { icon: CupSoda, tone: "bg-orange-50 text-orange-600" },
-    packaging: { icon: Package, tone: "bg-stone-100 text-stone-600" },
-  };
-  return icons[slug] ?? { icon: Package, tone: "bg-muted text-muted-foreground" };
 }
 
 function ContactValue({ contact }: { contact: CatalogContact }) {

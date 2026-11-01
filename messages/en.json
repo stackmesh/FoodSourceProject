@@ -133,6 +133,13 @@
   },
   "Catalog": {
     "demo": "Demo data",
+    "demoMark": "Demo",
+    "logoAlt": "Demonstration logo: {name}. This is not an official trademark.",
+    "logoAltReal": "Logo: {name}",
+    "logoMissing": "Logo not recorded: {name}",
+    "productAlt": "Demonstration photograph: {name}. This is not a verified supplier product.",
+    "productAltReal": "Photograph: {name}",
+    "productMissing": "Photograph not recorded: {name}",
     "demoSource": "Demonstration source, not a citation",
     "officialSource": "Official website",
     "unavailable": "Not available",

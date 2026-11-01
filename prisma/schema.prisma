@@ -87,6 +87,7 @@ model Supplier {
   dataType           DataType           @default(DEMO)
   verificationStatus VerificationStatus @default(UNVERIFIED)
   lastVerifiedAt     DateTime?
+  logoUrl            String?
   isActive           Boolean            @default(true)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -134,6 +135,7 @@ model SupplierProduct {
   packageDescription   String?
   priceUpdatedAt       DateTime?
   deliveryNotes        String?
+  imageUrl             String?
   isAvailable          Boolean?
   dataType             DataType @default(DEMO)
   createdAt            DateTime @default(now())

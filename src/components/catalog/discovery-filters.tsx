@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { contactStatuses } from "@/lib/contact-tracking";
 import { freshnessStatuses } from "@/lib/freshness";
 import { sortOptions, type DiscoveryQuery, type SupplierTypeFilter } from "@/lib/discovery-query";
+import { productTypes } from "@/lib/product-type";
 import { usePathname, useRouter } from "@/i18n/navigation";
 
 const types: SupplierTypeFilter[] = [
@@ -48,6 +49,7 @@ export function DiscoveryFilters({
       city: String(formData.get("city") ?? ""),
       region: String(formData.get("region") ?? ""),
       type: String(formData.get("type") ?? ""),
+      productType: String(formData.get("productType") ?? ""),
       contact: String(formData.get("contact") ?? ""),
       freshness: String(formData.get("freshness") ?? ""),
       maxPrice: String(formData.get("maxPrice") ?? "").trim(),
@@ -74,6 +76,7 @@ export function DiscoveryFilters({
     query.city,
     query.region,
     query.type,
+    query.productType,
     query.sort,
     query.certified ? "1" : "",
     query.certificate,
@@ -177,6 +180,14 @@ export function DiscoveryFilters({
             {types.map((type) => (
               <option key={type} value={type}>
                 {catalog(`types.${type}`)}
+              </option>
+            ))}
+          </Select>
+          <Select name="productType" label={t("productType")} defaultValue={query.productType}>
+            <option value="">{t("any")}</option>
+            {productTypes.map((type) => (
+              <option key={type} value={type}>
+                {catalog(`productTypes.${type}`)}
               </option>
             ))}
           </Select>

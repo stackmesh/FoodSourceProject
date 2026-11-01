@@ -13,6 +13,14 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set.");
 }
 
+const typeSource = readFileSync(new URL("../src/lib/product-type.ts", import.meta.url), "utf8");
+const typeCompiled = ts.transpileModule(typeSource, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+  },
+}).outputText;
+
 const source = readFileSync(new URL("./seed.ts", import.meta.url), "utf8");
 const start = source.indexOf("const categories");
 const end = source.indexOf("function idFor");
@@ -26,9 +34,11 @@ const compiled = ts.transpileModule(`${slice}\nmodule.exports = { categories, su
 
 mkdirSync(new URL("../.cache/", import.meta.url), { recursive: true });
 writeFileSync(new URL("../.cache/demo-data.cjs", import.meta.url), compiled);
+writeFileSync(new URL("../.cache/product-type.cjs", import.meta.url), typeCompiled);
 
 const require = createRequire(import.meta.url);
 const { categories, suppliers } = require("../.cache/demo-data.cjs");
+const { productTypeForName } = require("../.cache/product-type.cjs");
 
 function idFor(key) {
   const hex = createHash("sha256").update(key).digest("hex");
@@ -87,6 +97,7 @@ try {
         delivery: product.delivery,
         image: product.image,
         dataType: "DEMO",
+        productType: productTypeForName(product.name),
       })),
       contacts: [
         ["PHONE", "Демо-телефон", `+7 (000) 100-${String(index + 1).padStart(2, "0")}-01`, null],
@@ -138,6 +149,7 @@ try {
         unit: null,
         delivery: supplier.deliveryNotes ?? null,
         dataType: "REAL",
+        productType: productTypeForName(product.name),
       })),
       contacts: supplier.contacts.map((contact) => [contact.type, contact.label, contact.value, contact.sourceUrl]),
       certs: supplier.certs,
@@ -219,8 +231,8 @@ async function upsertSupplier(db, supplier, categoryIds) {
     if (!categoryId) throw new Error(`Unknown category ${product.category} for ${supplier.slug}`);
     await db.query(
       `INSERT INTO "SupplierProduct"
-        ("id", "supplierId", "categoryId", "name", "description", "estimatedPrice", "currency", "minimumOrderQuantity", "unit", "deliveryNotes", "imageUrl", "isAvailable", "dataType", "priceUpdatedAt", "updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,'RUB',$7,$8,$9,$10,$11,$12,$13,NOW())`,
+        ("id", "supplierId", "categoryId", "name", "description", "estimatedPrice", "currency", "minimumOrderQuantity", "unit", "deliveryNotes", "imageUrl", "isAvailable", "productType", "dataType", "priceUpdatedAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,'RUB',$7,$8,$9,$10,$11,$12,$13,$14,NOW())`,
       [
         idFor(`product:${supplier.slug}:${product.name}`),
         supplierId,
@@ -233,6 +245,7 @@ async function upsertSupplier(db, supplier, categoryIds) {
         product.delivery,
         product.image ?? null,
         supplier.dataType === "DEMO" ? true : null,
+        product.productType,
         product.dataType,
         product.price == null ? null : supplier.createdAt,
       ],

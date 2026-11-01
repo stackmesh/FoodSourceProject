@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPrisma } from "@/lib/prisma";
+import { productTypes } from "@/lib/product-type";
 
 const supplierTypes = [
   "MANUFACTURER",
@@ -17,6 +18,7 @@ const idSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 const productSchema = z.object({
   name: z.string().trim().min(1).max(200),
   categorySlug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  productType: z.enum(productTypes),
   estimatedPrice: z.number().nonnegative().nullable(),
   minimumOrderQuantity: z.number().nonnegative().nullable(),
   unit: z.string().trim().max(40).nullable(),
@@ -67,6 +69,7 @@ function productRows(
     unit: product.unit,
     deliveryNotes: product.deliveryNotes,
     isAvailable: dataType === "DEMO" ? true : null,
+    productType: product.productType,
     dataType,
     priceUpdatedAt: product.estimatedPrice == null ? null : new Date(),
   }));

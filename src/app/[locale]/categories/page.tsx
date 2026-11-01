@@ -16,6 +16,7 @@ import {
 import { ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
+import { productTypes } from "@/lib/product-type";
 import { getCategories } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
@@ -61,6 +62,7 @@ export default async function CategoriesPage({
 
 async function CategoryGrid({ locale }: { locale: string }) {
   const t = await getTranslations("CategoriesPage");
+  const catalog = await getTranslations("Catalog");
   const categories = await loadCategories();
 
   if (!categories) {
@@ -73,6 +75,21 @@ async function CategoryGrid({ locale }: { locale: string }) {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold">{t("productTypesTitle")}</h2>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {productTypes.map((type) => (
+            <li key={type}>
+              <Link
+                href={`/suppliers?productType=${type}`}
+                className="inline-flex rounded-full border bg-card px-3 py-1 text-sm hover:border-primary/40"
+              >
+                {catalog(`productTypes.${type}`)}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {categories.map((category) => {
           const visual = categoryVisuals[category.slug] ?? { icon: Package, tone: "bg-muted text-muted-foreground" };

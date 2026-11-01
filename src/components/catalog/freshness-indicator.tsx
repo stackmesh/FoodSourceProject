@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { formatDate } from "@/lib/format";
+import { ExternalLink } from "lucide-react";
 import { freshnessFacts, type FreshnessStatus } from "@/lib/freshness";
 import type { CatalogSupplier } from "@/server/catalog-types";
 import { getTranslations } from "next-intl/server";
@@ -30,8 +31,6 @@ export async function FreshnessIndicator({
   const facts = freshnessFacts(supplier, observed, timeZone);
   const unavailable = catalog("unavailable");
   const updated = dateText(facts.recordUpdatedAt, locale) ?? unavailable;
-  const verified = dateText(facts.verifiedAt, locale);
-  const created = dateText(facts.createdAt, locale) ?? unavailable;
   const checked = dateText(facts.sourceCheckedAt, locale);
 
   if (variant === "card") {
@@ -63,26 +62,64 @@ export async function FreshnessIndicator({
     );
   }
 
+  const reviewed = dateText(latestSourceCheck(supplier.sources), locale) ?? unavailable;
+  const verificationTone =
+    supplier.verificationStatus === "VERIFIED" || supplier.verificationStatus === "PARTIALLY_VERIFIED"
+      ? "border-primary/30 bg-primary/10 text-primary"
+      : supplier.verificationStatus === "EXPIRED"
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-border text-muted-foreground";
+
   return (
     <section className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{t("title")}</h2>
-        <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium ${tones[facts.status]}`}>
+        <h2 className="text-base font-semibold">{t("sourceSection")}</h2>
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${tones[facts.status]}`}>
           {t(facts.status)}
         </span>
       </div>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("disclaimer")}</p>
-      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-        <Fact label={t("created")} value={created} />
-        <Fact label={t("recordUpdated")} value={updated} />
-        <Fact label={t("verified")} value={verified ?? unavailable} />
-        <Fact label={t("externalSync")} value={unavailable} note={t("noSyncRecord")} />
-        <Fact label={t("verification")} value={catalog(`verification.${supplier.verificationStatus}`)} />
-        <Fact label={t("sourceChecked")} value={checked ?? unavailable} />
+      <dl className="mt-4 space-y-3 text-sm">
+        <SourceFact label={t("lastUpdated")}>
+          <span className="font-semibold">{updated}</span>
+        </SourceFact>
+        <SourceFact label={t("lastReviewed")}>
+          <span className="font-semibold">{reviewed}</span>
+        </SourceFact>
+        <SourceFact label={t("verification")}>
+          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${verificationTone}`}>
+            {catalog(`verification.${supplier.verificationStatus}`)}
+          </span>
+        </SourceFact>
       </dl>
-      <p className="mt-3 text-sm text-muted-foreground">
-        {t("source")}: <SourceLine facts={facts} unavailable={unavailable} demoLabel={catalog("demoSource")} />
-      </p>
+      <div className="mt-4 border-t pt-4">
+        <h3 className="text-sm font-semibold">{t("informationSources")}</h3>
+        {supplier.sources.length ? (
+          <ul className="mt-2 divide-y">
+            {supplier.sources.map((source) => (
+              <li key={source.id}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-start justify-between gap-3 py-3 hover:text-primary"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{source.title ?? source.url}</span>
+                    <span className={`mt-0.5 block text-xs ${source.sourceType === "DEMO" ? "text-amber-800" : "text-muted-foreground"}`}>
+                      {t(`sourceTypes.${source.sourceType}`)}
+                    </span>
+                    {source.evidence ? <span className="mt-1 block text-xs leading-5 text-muted-foreground">{source.evidence}</span> : null}
+                  </span>
+                  <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">{unavailable}</p>
+        )}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">{t("detailDisclaimer")}</p>
     </section>
   );
 }
@@ -96,14 +133,14 @@ function SourceFact({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-function Fact({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 font-medium">{value}</dd>
-      {note ? <dd className="mt-0.5 text-xs leading-5 text-muted-foreground">{note}</dd> : null}
-    </div>
-  );
+function latestSourceCheck(sources: CatalogSupplier["sources"]) {
+  const latest = sources.reduce<number | null>((current, source) => {
+    if (!source.checkedAt) return current;
+    const time = new Date(source.checkedAt).getTime();
+    if (Number.isNaN(time)) return current;
+    return current == null || time > current ? time : current;
+  }, null);
+  return latest == null ? null : new Date(latest).toISOString();
 }
 
 function SourceLine({

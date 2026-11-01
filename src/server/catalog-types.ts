@@ -9,6 +9,7 @@ import type {
   SupplierType,
   VerificationStatus,
 } from "@/generated/prisma/client";
+import type { ProductType } from "@/lib/product-type";
 
 export type CatalogProduct = {
   id: string;
@@ -22,6 +23,7 @@ export type CatalogProduct = {
   unit: string | null;
   deliveryNotes: string | null;
   imageUrl: string | null;
+  productType: ProductType;
   dataType: DataType;
   priceUpdatedAt: string | null;
 };

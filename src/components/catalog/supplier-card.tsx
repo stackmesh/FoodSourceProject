@@ -1,5 +1,6 @@
 import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
+import { ProductTypeBadge } from "@/components/catalog/product-type-ui";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { isConfirmedCertificate } from "@/lib/certificate-status";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
@@ -159,6 +160,9 @@ export async function SupplierCard({
               </span>
             );
           })}
+          {[...new Set(supplier.products.map((product) => product.productType))].map((type) => (
+            <ProductTypeBadge key={type} type={type} />
+          ))}
         </div>
         <span
           className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium ${

@@ -220,6 +220,7 @@ export function CompareButton({
   context,
   className,
   showIcon = false,
+  activeVariant = "secondary",
 }: {
   slug: string;
   active: boolean;
@@ -234,6 +235,7 @@ export function CompareButton({
   };
   className?: string;
   showIcon?: boolean;
+  activeVariant?: "default" | "secondary";
 }) {
   const slugs = useCompareSlugs();
   const member = slugs ? slugs.includes(slug) : active;
@@ -246,6 +248,7 @@ export function CompareButton({
       context={context}
       className={className}
       showIcon={showIcon}
+      activeVariant={activeVariant}
     />
   );
 }
@@ -256,6 +259,7 @@ function CompareControl({
   context,
   className,
   showIcon = false,
+  activeVariant = "secondary",
 }: {
   slug: string;
   active: boolean;
@@ -270,6 +274,7 @@ function CompareControl({
   };
   className?: string;
   showIcon?: boolean;
+  activeVariant?: "default" | "secondary";
 }) {
   const t = useTranslations("Catalog");
   const [state, action, pending] = useActionState(addToComparison, null);
@@ -281,7 +286,7 @@ function CompareControl({
 
   if (comparing) {
     return (
-      <Button asChild variant="secondary" size="sm" className={className}>
+      <Button asChild variant={activeVariant} size="sm" className={className}>
         <Link href="/compare">
           {showIcon ? <ArrowLeftRight /> : null}
           {t("inCompare")}
@@ -291,7 +296,7 @@ function CompareControl({
   }
 
   return (
-    <form action={action} className={showIcon ? "min-w-0 w-full" : undefined}>
+    <form action={action} className={className?.includes("w-full") ? "min-w-0 w-full" : undefined}>
       <input type="hidden" name="slug" value={slug} />
       {context ? (
         <>

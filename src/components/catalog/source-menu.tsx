@@ -12,14 +12,16 @@ import {
 export function SourceMenu({
   label,
   sources,
+  className,
 }: {
   label: string;
   sources: { id: string; url: string; title: string | null }[];
+  className?: string;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={sources.length === 0}>
+        <Button type="button" variant="outline" size="sm" className={className} disabled={sources.length === 0}>
           {label}
           <ChevronDown />
         </Button>

@@ -81,6 +81,7 @@ async function Detail({
       today={loaded.today}
       observedAt={loaded.observedAt}
       timeZone={loaded.timeZone}
+      productType={loaded.productType}
     />
   );
 }
@@ -103,6 +104,7 @@ async function loadDetail(slug: string, rawQuery: Record<string, string | string
       today: clock.today,
       observedAt: clock.observedAt,
       timeZone: clock.timeZone,
+      productType: query.productType,
       listHref: search ? `/suppliers?${search}` : "/suppliers",
       matchContext: ranked
         ? {

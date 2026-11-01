@@ -92,6 +92,24 @@ const dairy = await names({ category: "dairy" });
 check("dairy filter includes EkoNiva", dairy.slugs.includes("ekoniva"));
 check("dairy filter excludes a meat supplier", !dairy.slugs.includes("privolzhskaya-ptica"));
 
+const packagingType = await names({ productType: "PACKAGING" });
+check("packaging type includes the packaging supplier", packagingType.slugs.includes("upakovka-povolzhyya"));
+check("packaging type includes Gotek", packagingType.slugs.includes("gotek"));
+check("packaging type excludes a meat supplier", !packagingType.slugs.includes("privolzhskaya-ptica"));
+const ingredientsType = await names({ productType: "INGREDIENTS" });
+check("ingredients type includes flour supplier", ingredientsType.slugs.includes("centralnaya-bakaleya"));
+const finishedType = await names({ productType: "FINISHED_PRODUCTS" });
+check("finished products include bottled drinks", finishedType.slugs.includes("stolichnye-napitki"));
+const otherType = await names({ productType: "OTHER_FOOD_RELATED_GOODS" });
+check("other food goods includes Cherkizovo", otherType.slugs.includes("cherkizovo") && otherType.total === 1);
+const packagedDairy = await names({ productType: "PACKAGING", category: "dairy" });
+check("product type and category can be combined", packagedDairy.total === 0);
+const belaya = await getSupplier("belaya-dacha");
+check(
+  "category stays beside product type",
+  belaya.products.every((product) => product.categorySlug === "produce" && product.productType === "INGREDIENTS"),
+);
+
 const city = await names({ city: "Владивосток" });
 check("Vladivostok is only Russian Fishery", city.total === 1 && city.slugs[0] === "russian-fishery");
 
@@ -205,6 +223,7 @@ const created = await createSupplier({
     {
       name: "Пробный продукт",
       categorySlug: "grocery",
+      productType: "INGREDIENTS",
       estimatedPrice: 15,
       minimumOrderQuantity: 3,
       unit: "кг",
@@ -241,6 +260,7 @@ await updateSupplier(created.id, {
     {
       name: "Обновлённый продукт",
       categorySlug: "grocery",
+      productType: "INGREDIENTS",
       estimatedPrice: 15,
       minimumOrderQuantity: 3,
       unit: "кг",

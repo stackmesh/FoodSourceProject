@@ -73,6 +73,7 @@ function mapSupplier(row: {
     unit: string | null;
     deliveryNotes: string | null;
     imageUrl: string | null;
+    productType: CatalogProduct["productType"];
     dataType: CatalogProduct["dataType"];
     priceUpdatedAt: Date | null;
     category: { slug: string; nameRu: string; nameEn: string };
@@ -116,6 +117,7 @@ function mapSupplier(row: {
     unit: product.unit,
     deliveryNotes: product.deliveryNotes,
     imageUrl: product.imageUrl,
+    productType: product.productType,
     dataType: product.dataType,
     priceUpdatedAt: product.priceUpdatedAt?.toISOString() ?? null,
   }));

@@ -77,6 +77,7 @@ try {
       {
         name: "Пробный продукт",
         categorySlug: "grocery",
+        productType: "INGREDIENTS",
         estimatedPrice: null,
         minimumOrderQuantity: null,
         unit: null,

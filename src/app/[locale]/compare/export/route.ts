@@ -4,6 +4,7 @@ import { comparisonExportFilename } from "@/lib/csv";
 import { buildComparisonCsv, comparisonExportColumns, type ComparisonExportLabels } from "@/lib/comparison-export";
 import { compareCookieName, matchContextCookieName, parseCompareSlugs, parseMatchContext } from "@/lib/comparison";
 import { freshnessStatuses } from "@/lib/freshness";
+import { productTypes } from "@/lib/product-type";
 import { contactStatuses } from "@/lib/contact-tracking";
 import { assertLocale } from "@/i18n/locale";
 import { requestClock } from "@/lib/today";
@@ -40,6 +41,7 @@ export async function GET(
       columns: Object.fromEntries(comparisonExportColumns.map((column) => [column, compare(`exportColumns.${column}`)])) as ComparisonExportLabels["columns"],
       missing: catalog("unavailable"),
       supplierType: Object.fromEntries(supplierTypes.map((type) => [type, catalog(`types.${type}`)])) as ComparisonExportLabels["supplierType"],
+      productType: Object.fromEntries(productTypes.map((type) => [type, catalog(`productTypes.${type}`)])) as ComparisonExportLabels["productType"],
       contactStatus: Object.fromEntries(contactStatuses.map((status) => [status, catalog(`contactStatus.${status}`)])) as ComparisonExportLabels["contactStatus"],
       freshness: Object.fromEntries(freshnessStatuses.map((status) => [status, freshness(status)])) as ComparisonExportLabels["freshness"],
     };

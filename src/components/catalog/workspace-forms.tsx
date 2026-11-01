@@ -98,7 +98,7 @@ export function ContactTracking({
             ))}
           </select>
         </label>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3">
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("lastContact")}</span>
             <input
@@ -118,7 +118,7 @@ export function ContactTracking({
             />
           </label>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3">
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("contactPerson")}</span>
             <input
@@ -152,7 +152,7 @@ export function ContactTracking({
       </form>
       <div>
         <h3 className="text-sm font-medium">{t("activity")}</h3>
-        <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+        <dl className="mt-2 space-y-2 text-sm">
           <Summary
             label={t("status")}
             value={t(`contactStatus.${entry?.contactStatus ?? "NOT_CONTACTED"}`)}
@@ -197,9 +197,9 @@ function Summary({
   caution?: boolean;
 }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={missing ? "text-muted-foreground" : caution ? "font-medium text-amber-800" : "font-medium"}>
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`text-right ${missing ? "text-muted-foreground" : caution ? "font-medium text-amber-800" : "font-medium"}`}>
         {value}
       </dd>
     </div>

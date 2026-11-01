@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isCertificateFilter, type CertificateFilter } from "@/lib/certificate-status";
 import { isContactStatus, type ContactStatus } from "@/lib/contact-tracking";
 import { isFreshnessStatus, type FreshnessStatus } from "@/lib/freshness";
+import { isProductType, type ProductType } from "@/lib/product-type";
 
 export const sortOptions = [
   { value: "match", label: "sortMatch" },
@@ -40,6 +41,7 @@ export type DiscoveryQuery = {
   city: string;
   region: string;
   type: SupplierTypeFilter | "";
+  productType: ProductType | "";
   certified: boolean;
   certificate: CertificateFilter | "";
   contact: ContactStatus | "";
@@ -57,6 +59,7 @@ const inputSchema = z.object({
   city: z.string().trim().max(120).optional().default(""),
   region: z.string().trim().max(160).optional().default(""),
   type: z.string().trim().max(40).optional().default(""),
+  productType: z.string().trim().max(40).optional().default(""),
   certified: z.string().trim().max(8).optional().default(""),
   certificate: z.string().trim().max(20).optional().default(""),
   contact: z.string().trim().max(40).optional().default(""),
@@ -101,6 +104,7 @@ export function parseDiscoveryQuery(
     city: first(raw.city),
     region: first(raw.region),
     type: first(raw.type),
+    productType: first(raw.productType),
     certified: first(raw.certified),
     certificate: first(raw.certificate),
     contact: first(raw.contact),
@@ -120,6 +124,7 @@ export function parseDiscoveryQuery(
     city: parsed.city,
     region: parsed.region,
     type: isSupplierType(parsed.type) ? parsed.type : "",
+    productType: isProductType(parsed.productType) ? parsed.productType : "",
     certified: parsed.certified === "1",
     certificate: isCertificateFilter(parsed.certificate) ? parsed.certificate : "",
     contact: isContactStatus(parsed.contact) ? parsed.contact : "",
@@ -144,6 +149,7 @@ export function toSearchParams(query: DiscoveryQuery, page = query.page) {
   if (query.city) params.set("city", query.city);
   if (query.region) params.set("region", query.region);
   if (query.type) params.set("type", query.type);
+  if (query.productType) params.set("productType", query.productType);
   if (query.certified) params.set("certified", "1");
   if (query.certificate) params.set("certificate", query.certificate);
   if (query.contact) params.set("contact", query.contact);

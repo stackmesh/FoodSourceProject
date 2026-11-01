@@ -1,5 +1,6 @@
 import { CertificateFacts } from "@/components/catalog/certificate-badges";
-import { ProductPhoto, SupplierLogo } from "@/components/catalog/catalog-media";
+import { CompareProductList } from "@/components/catalog/product-type-ui";
+import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
 import { ContactStatusForm, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,10 @@ export async function CompareView({
                 {row.cells.map((cell, index) => (
                   <td key={`${row.key}-${suppliers[index]?.id}`} className="px-4 py-3 align-top">
                     {row.key === "products" ? (
-                      <ProductCompareCell supplier={suppliers[index]} locale={locale} catalog={catalog} cell={cell} />
+                      <>
+                        <CompareProductList products={suppliers[index]?.products ?? []} locale={locale} />
+                        <CellBody cell={{ ...cell, text: suppliers[index]?.products.length ? "" : cell.text }} />
+                      </>
                     ) : row.key === "verification" ? (
                       <VerificationCell supplier={suppliers[index]} label={cell.text} />
                     ) : row.key === "certs" ? (
@@ -147,46 +151,6 @@ export async function CompareView({
         saveFirst={profile("saveFirst")}
       />
     </div>
-  );
-}
-
-function ProductCompareCell({
-  supplier,
-  locale,
-  catalog,
-  cell,
-}: {
-  supplier: CatalogSupplier | undefined;
-  locale: string;
-  catalog: Awaited<ReturnType<typeof getTranslations>>;
-  cell: Cell;
-}) {
-  const categoryKey = locale === "en" ? "categoryNameEn" : "categoryNameRu";
-  const products = supplier?.products.slice(0, 4) ?? [];
-  return (
-    <>
-      {products.length ? (
-        <ul className="space-y-2">
-          {products.map((product) => (
-            <li key={product.id} className="flex items-center gap-2">
-              <ProductPhoto
-                product={product}
-                size={48}
-                demoAlt={catalog("productAlt", { name: product.name })}
-                realAlt={catalog("productAltReal", { name: product.name })}
-                missingAlt={catalog("productMissing", { name: product.name })}
-                demoMark={catalog("demoMark")}
-              />
-              <span className="min-w-0">
-                {product.name}
-                <span className="mt-0.5 block text-xs text-muted-foreground">{product[categoryKey]}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <CellBody cell={{ ...cell, text: products.length ? "" : cell.text }} />
-    </>
   );
 }
 

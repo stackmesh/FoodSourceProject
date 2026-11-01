@@ -57,6 +57,13 @@ function whereSql(query: DiscoveryQuery, like: string) {
   if (query.city) filters.push(Prisma.sql`s."city" = ${query.city}`);
   if (query.region) filters.push(Prisma.sql`s."region" = ${query.region}`);
   if (query.type) filters.push(Prisma.sql`s."supplierType"::text = ${query.type}`);
+  if (query.productType) {
+    filters.push(Prisma.sql`EXISTS (
+      SELECT 1
+      FROM "SupplierProduct" p
+      WHERE p."supplierId" = s."id" AND p."productType"::text = ${query.productType}
+    )`);
+  }
 
   if (query.certified) {
     const effective = effectiveCertificateStatusSql(serverTimeZone());
@@ -296,6 +303,7 @@ export async function comparableOfferGroup(
       AND ${amount} IS NOT NULL
       AND ${amount} >= 0
       AND (${query.category} = '' OR c."slug" = ${query.category})
+      AND (${query.productType} = '' OR p."productType"::text = ${query.productType})
     GROUP BY 1, 2, 3
     ORDER BY suppliers DESC, category ASC, unit_key ASC, currency ASC
   `);
@@ -324,10 +332,10 @@ function orderBySql(
       return Prisma.sql`${completenessSql} DESC, ${nameThenId}`;
     case "price":
     case "price-desc":
-      return Prisma.sql`${offerAmountSql(group, "price")} ${query.sort === "price-desc" ? Prisma.raw("DESC") : Prisma.raw("ASC")} NULLS LAST, ${nameThenId}`;
+      return Prisma.sql`${offerAmountSql(group, "price", query.productType)} ${query.sort === "price-desc" ? Prisma.raw("DESC") : Prisma.raw("ASC")} NULLS LAST, ${nameThenId}`;
     case "moq":
     case "moq-desc":
-      return Prisma.sql`${offerAmountSql(group, "moq")} ${query.sort === "moq-desc" ? Prisma.raw("DESC") : Prisma.raw("ASC")} NULLS LAST, ${nameThenId}`;
+      return Prisma.sql`${offerAmountSql(group, "moq", query.productType)} ${query.sort === "moq-desc" ? Prisma.raw("DESC") : Prisma.raw("ASC")} NULLS LAST, ${nameThenId}`;
     case "relevance":
       return Prisma.sql`
         CASE
@@ -342,7 +350,7 @@ function orderBySql(
   }
 }
 
-function offerAmountSql(group: ComparableOfferGroup | null, kind: "price" | "moq") {
+function offerAmountSql(group: ComparableOfferGroup | null, kind: "price" | "moq", productType = "") {
   if (!group) return Prisma.sql`NULL::numeric`;
   const amount = kind === "price" ? Prisma.sql`p."estimatedPrice"` : Prisma.sql`p."minimumOrderQuantity"`;
   const currencySql =
@@ -359,6 +367,7 @@ function offerAmountSql(group: ComparableOfferGroup | null, kind: "price" | "moq
       AND c."slug" = ${group.category}
       AND ${Prisma.raw(sqlUnitKey(`p."unit"`))} = ${group.unit}
       ${currencySql}
+      ${productType ? Prisma.sql`AND p."productType"::text = ${productType}` : Prisma.empty}
   )`;
 }
 

@@ -14,6 +14,7 @@ const labels: ComparisonExportLabels = {
     type: "Supplier type",
     categories: "Product categories",
     products: "Products",
+    productTypes: "Product types",
     city: "City",
     region: "Region",
     country: "Country",
@@ -43,6 +44,12 @@ const labels: ComparisonExportLabels = {
     PACKAGING: "Packaging",
     WHOLESALER: "Wholesaler",
     OTHER: "Other",
+  },
+  productType: {
+    INGREDIENTS: "Ingredients",
+    FINISHED_PRODUCTS: "Finished products",
+    PACKAGING: "Packaging",
+    OTHER_FOOD_RELATED_GOODS: "Other food-related goods",
   },
   contactStatus: {
     NOT_CONTACTED: "Not contacted",
@@ -99,6 +106,7 @@ function product(name: string, price: number | null, unit: string, moq: number |
     categoryNameEn: unit === "pcs" ? "Packaging" : "Dairy",
     price,
     currency: "RUB",
+    productType: unit === "pcs" ? "PACKAGING" : "INGREDIENTS",
     moq,
     unit,
     deliveryNotes: null,

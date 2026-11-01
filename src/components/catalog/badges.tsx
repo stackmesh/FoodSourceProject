@@ -23,13 +23,7 @@ export function SupplierBadges({
       <span className={`${pill} border text-xs text-muted-foreground`}>
         {t(`verification.${supplier.verificationStatus}`)}
       </span>
-      <span
-        className={
-          variant === "profile"
-            ? `${pill} border border-primary/30 text-xs font-medium text-primary`
-            : `${pill} border text-xs text-muted-foreground`
-        }
-      >
+      <span className={`${pill} border text-xs text-muted-foreground`}>
         {t(`types.${supplier.supplierType}`)}
       </span>
     </div>

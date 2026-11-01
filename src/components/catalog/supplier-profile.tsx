@@ -1,17 +1,20 @@
 import { SupplierBadges } from "@/components/catalog/badges";
 import { CertificateFacts, CertificateSummary } from "@/components/catalog/certificate-badges";
-import { ProductPhoto, SupplierLogo } from "@/components/catalog/catalog-media";
+import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
 import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
+import { SupplierProductSection } from "@/components/catalog/product-type-ui";
 import { SourceMenu } from "@/components/catalog/source-menu";
 import {
   ContactTracking,
   NoteEditor,
 } from "@/components/catalog/workspace-forms";
+import { buttonVariants } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
+import { cn } from "cn";
+import type { ProductType } from "@/lib/product-type";
 import type { CatalogContact, CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
 import type { MatchReport } from "@/server/matching";
 import { getTranslations } from "next-intl/server";
@@ -20,13 +23,12 @@ import {
   ChevronLeft,
   Coins,
   ExternalLink,
-  FileText,
+  Info,
   MapPin,
   Package,
   Phone,
   Shield,
   Star,
-  Tag,
   TriangleAlert,
   Truck,
   type LucideIcon,
@@ -45,6 +47,7 @@ export async function SupplierProfile({
   today,
   observedAt,
   timeZone,
+  productType = "",
 }: {
   supplier: CatalogSupplier;
   locale: string;
@@ -57,6 +60,7 @@ export async function SupplierProfile({
   today: string;
   observedAt: string;
   timeZone: string;
+  productType?: ProductType | "";
   matchContext?: {
     query: string;
     category: string;
@@ -69,15 +73,12 @@ export async function SupplierProfile({
 }) {
   const t = await getTranslations("Profile");
   const catalog = await getTranslations("Catalog");
-  const freshness = await getTranslations("Freshness");
-  const categoryKey = locale === "en" ? "categoryNameEn" : "categoryNameRu";
   const deliveryNotes = [
     ...new Set(supplier.products.flatMap((product) => (product.deliveryNotes ? [product.deliveryNotes] : []))),
   ];
   const place = [placeLine(supplier), supplier.country].filter(Boolean).join(", ");
   const price = priceLine(supplier, locale, (value) => catalog("priceFrom", { value }));
   const moq = moqLine(supplier, locale, (value) => catalog("moqFrom", { value }));
-  const categories = [...new Set(supplier.products.map((product) => product[categoryKey]))];
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
@@ -85,60 +86,73 @@ export async function SupplierProfile({
         <ChevronLeft className="size-4" />
         {t("back")}
       </Link>
-      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
+      <div className="mt-4">
+        <div className="flex min-w-0 items-start gap-4">
           <SupplierLogo
             supplier={supplier}
-            size={72}
+            size={64}
             demoAlt={catalog("logoAlt", { name: supplier.name })}
             realAlt={catalog("logoAltReal", { name: supplier.name })}
             missingAlt={catalog("logoMissing", { name: supplier.name })}
             demoMark={catalog("demoMark")}
           />
           <div className="min-w-0">
-          <div className="flex items-center gap-1">
-            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{supplier.name}</h1>
-            <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
-          </div>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <MapPin className="size-3.5 shrink-0 text-primary" />
-            <span>{place || catalog("unavailable")}</span>
-          </p>
-          <div className="mt-3">
-            <SupplierBadges supplier={supplier} variant="profile" />
-          </div>
+            <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">{supplier.name}</h1>
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="size-3.5 shrink-0 text-primary" />
+              <span>{place || catalog("unavailable")}</span>
+            </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <FavoriteButton supplierId={supplier.id} saved={saved} appearance="bookmark" />
-          <CompareButton slug={supplier.slug} active={comparing} showIcon context={matchContext} />
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SupplierBadges supplier={supplier} variant="profile" />
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <FavoriteButton
+            supplierId={supplier.id}
+            saved={saved}
+            appearance="bookmark"
+            className="h-9 rounded-lg"
+          />
+          <CompareButton
+            slug={supplier.slug}
+            active={comparing}
+            showIcon
+            activeVariant="default"
+            context={matchContext}
+            className="h-9 rounded-lg"
+          />
           {supplier.website ? (
             <a
               href={supplier.website}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-sm font-medium hover:bg-accent"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-9 rounded-lg")}
             >
               {t("website")}
-              <ExternalLink className="size-3.5" />
+              <ExternalLink />
             </a>
           ) : (
-            <span className="inline-flex h-8 items-center rounded-md border px-3 text-sm text-muted-foreground">
+            <span className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-9 rounded-lg text-muted-foreground")}>
               {t("website")}
             </span>
           )}
           <SourceMenu
             label={t("source")}
+            className="h-9 rounded-lg"
             sources={supplier.sources.map((source) => ({
               id: source.id,
               url: source.url,
               title: source.title,
             }))}
           />
+          </div>
         </div>
       </div>
       {supplier.description ? (
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">{supplier.description}</p>
+        <p className="mt-4 flex w-full items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-6">
+          <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <span>{supplier.description}</span>
+        </p>
       ) : null}
 
       <dl className="mt-4 grid gap-4 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0 lg:divide-x">
@@ -182,87 +196,7 @@ export async function SupplierProfile({
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
-          <FreshnessIndicator
-            supplier={supplier}
-            locale={locale}
-            observedAt={observedAt}
-            timeZone={timeZone}
-            variant="detail"
-          />
-          <section className="rounded-xl border bg-card p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-base font-semibold">
-                <Tag className="size-4 text-muted-foreground" />
-                {t("products")}
-              </h2>
-              {categories.length ? (
-                <ul className="flex flex-wrap justify-end gap-1.5">
-                  {categories.map((category) => (
-                    <li key={category} className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">
-                      {category}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-            {supplier.products.length ? (
-              <ul className="mt-2 divide-y">
-                {supplier.products.map((product) => {
-                  return (
-                    <li key={product.id} className="flex gap-3 py-4">
-                      <ProductPhoto
-                        product={product}
-                        size={80}
-                        demoAlt={catalog("productAlt", { name: product.name })}
-                        realAlt={catalog("productAltReal", { name: product.name })}
-                        missingAlt={catalog("productMissing", { name: product.name })}
-                        demoMark={catalog("demoMark")}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium">{product.name}</p>
-                          <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">
-                            {product[categoryKey]}
-                          </span>
-                        </div>
-                        <dl className="mt-2 grid gap-2 sm:grid-cols-3">
-                          <ProductFact
-                            label={catalog("price")}
-                            value={
-                              product.price == null
-                                ? catalog("priceUnavailable")
-                                : `${formatMoney(product.price, locale, product.currency)}${product.unit ? ` / ${product.unit}` : ""}`
-                            }
-                            missing={product.price == null}
-                          />
-                          <ProductFact
-                            label={catalog("moq")}
-                            value={
-                              product.moq == null
-                                ? catalog("moqUnavailable")
-                                : formatQuantity(product.moq, product.unit, locale)
-                            }
-                            missing={product.moq == null}
-                          />
-                          <ProductFact
-                            label={t("updated")}
-                            value={
-                              product.price != null && product.priceUpdatedAt
-                                ? formatDate(product.priceUpdatedAt, locale)
-                                : catalog("unavailable")
-                            }
-                            missing={product.price == null || !product.priceUpdatedAt}
-                          />
-                        </dl>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">{catalog("unavailable")}</p>
-            )}
-          </section>
+          <SupplierProductSection products={supplier.products} locale={locale} initialType={productType} />
 
           <section className="rounded-xl border bg-card p-4">
             <h2 className="flex items-center gap-2 text-base font-semibold">
@@ -308,32 +242,13 @@ export async function SupplierProfile({
             )}
           </section>
 
-          <section className="rounded-xl border bg-card p-4">
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <FileText className="size-4 text-muted-foreground" />
-              {t("sources")}
-            </h2>
-            {supplier.sources.length ? (
-              <ul className="mt-3 space-y-3">
-                {supplier.sources.map((source) => (
-                  <li key={source.id} className="text-sm leading-6">
-                    <a href={source.url} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
-                      {source.title ?? source.url}
-                    </a>
-                    <p className="text-xs text-muted-foreground">
-                      {source.sourceType === "DEMO" ? catalog("demoSource") : catalog("officialSource")}
-                    </p>
-                    {source.evidence ? <p className="mt-1 text-muted-foreground">{source.evidence}</p> : null}
-                    <p className="text-xs text-muted-foreground">
-                      {freshness("sourceChecked")}: {source.checkedAt ? formatDate(source.checkedAt, locale) : catalog("unavailable")}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">{catalog("unavailable")}</p>
-            )}
-          </section>
+          <FreshnessIndicator
+            supplier={supplier}
+            locale={locale}
+            observedAt={observedAt}
+            timeZone={timeZone}
+            variant="detail"
+          />
         </div>
 
         <aside className="space-y-4">
@@ -425,15 +340,6 @@ function Metric({
         <dd className={`mt-1 text-sm font-semibold ${valueClass}`}>{value}</dd>
         <p className="mt-1 text-xs text-muted-foreground">{caption}</p>
       </div>
-    </div>
-  );
-}
-
-function ProductFact({ label, value, missing }: { label: string; value: string; missing: boolean }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={`mt-0.5 text-sm ${missing ? "text-muted-foreground" : "font-medium"}`}>{value}</dd>
     </div>
   );
 }

@@ -96,6 +96,7 @@ try {
       {
         name: "Пробный продукт",
         categorySlug: "grocery",
+        productType: "INGREDIENTS",
         estimatedPrice: 10,
         minimumOrderQuantity: 4,
         unit: "кг",

@@ -83,6 +83,14 @@ enum CertificateVerificationStatus {
   REJECTED
 }
 
+// What kind of goods a product is. Independent of Category.
+enum ProductType {
+  INGREDIENTS
+  FINISHED_PRODUCTS
+  PACKAGING
+  OTHER_FOOD_RELATED_GOODS
+}
+
 model Supplier {
   id                 String             @id @default(uuid()) @db.Uuid
   name               String
@@ -148,6 +156,7 @@ model SupplierProduct {
   deliveryNotes        String?
   imageUrl             String?
   isAvailable          Boolean?
+  productType          ProductType
   dataType             DataType @default(DEMO)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -161,6 +170,8 @@ model SupplierProduct {
   @@index([estimatedPrice])
   @@index([minimumOrderQuantity])
   @@index([dataType])
+  @@index([productType])
+  @@index([supplierId, productType])
 }
 
 model SupplierContact {

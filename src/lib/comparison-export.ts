@@ -3,6 +3,7 @@ import { toCsv } from "@/lib/csv";
 import { calendarDateInZone, freshnessStatus, type FreshnessStatus } from "@/lib/freshness";
 import type { ContactStatus } from "@/lib/contact-tracking";
 import { matchSuppliers, type MatchContext } from "@/server/matching";
+import type { ProductType } from "@/lib/product-type";
 import type { CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
 
 export const comparisonExportColumns = [
@@ -10,6 +11,7 @@ export const comparisonExportColumns = [
   "type",
   "categories",
   "products",
+  "productTypes",
   "city",
   "region",
   "country",
@@ -37,6 +39,7 @@ export type ComparisonExportLabels = {
   columns: Record<ComparisonExportColumn, string>;
   missing: string;
   supplierType: Record<CatalogSupplier["supplierType"], string>;
+  productType: Record<ProductType, string>;
   contactStatus: Record<ContactStatus, string>;
   freshness: Record<FreshnessStatus, string>;
 };
@@ -89,6 +92,8 @@ function cell(
       return join(unique(supplier.products.map((product) => product[categoryKey])), missing);
     case "products":
       return join(unique(supplier.products.map((product) => product.name)), missing);
+    case "productTypes":
+      return join(unique(supplier.products.map((product) => labels.productType[product.productType])), missing);
     case "city":
       return text(supplier.city, missing);
     case "region":

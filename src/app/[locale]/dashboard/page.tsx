@@ -6,6 +6,7 @@ import { RefreshDashboard } from "@/components/catalog/refresh-dashboard";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
 import { formatDate } from "@/lib/format";
+import { requestClock } from "@/lib/today";
 import { DataError } from "@/server/catalog-types";
 import { getDashboard } from "@/server/catalog";
 import {
@@ -214,7 +215,8 @@ function categoryTone(slug: string) {
 
 async function loadDashboard() {
   try {
-    return await getDashboard();
+    const clock = await requestClock();
+    return await getDashboard(new Date(clock.observedAt));
   } catch (error) {
     if (!(error instanceof DataError)) throw error;
     return null;

@@ -1,6 +1,8 @@
 import { Prisma } from "@/generated/prisma/client";
 import { demoWorkspaceKey } from "@/config/site";
 import { foldSearchText, type DiscoveryQuery, type SortKey } from "@/lib/discovery-query";
+import { isCertificateFilter, type CertificateFilter } from "@/lib/certificate-status";
+import { effectiveCertificateStatusSql } from "@/server/certificate-sql";
 import { freshnessThresholds, isFreshnessStatus, serverTimeZone } from "@/lib/freshness";
 import { getPrisma } from "@/lib/prisma";
 import { cohortFromProductRows, sqlUnitKey } from "@/server/matching";
@@ -57,13 +59,18 @@ function whereSql(query: DiscoveryQuery, like: string) {
   if (query.type) filters.push(Prisma.sql`s."supplierType"::text = ${query.type}`);
 
   if (query.certified) {
+    const effective = effectiveCertificateStatusSql(serverTimeZone());
     filters.push(Prisma.sql`EXISTS (
       SELECT 1
       FROM "Certification" cert
       WHERE cert."supplierId" = s."id"
         AND s."dataType" = 'REAL'
-        AND cert."status" IN ('VERIFIED', 'UNVERIFIED')
+        AND ${effective} NOT IN ('EXPIRED', 'SUSPENDED', 'REVOKED')
     )`);
+  }
+
+  if (isCertificateFilter(query.certificate)) {
+    filters.push(certificateFilterSql(query.certificate));
   }
 
   if (query.contact) {
@@ -220,6 +227,26 @@ export type ComparableOfferGroup = {
   unit: string;
   currency: string | null;
 };
+
+function certificateFilterSql(filter: CertificateFilter) {
+  const effective = effectiveCertificateStatusSql(serverTimeZone());
+  const predicate =
+    filter === "verified"
+      ? Prisma.sql`cert."verificationStatus"::text = 'VERIFIED' AND cert."isDemo" = false`
+      : filter === "valid"
+        ? Prisma.sql`${effective} = 'VALID'`
+        : filter === "expiring"
+          ? Prisma.sql`${effective} = 'EXPIRING_SOON'`
+          : filter === "expired"
+            ? Prisma.sql`${effective} = 'EXPIRED'`
+            : Prisma.sql`cert."verificationStatus"::text = 'UNVERIFIED'`;
+  return Prisma.sql`EXISTS (
+    SELECT 1
+    FROM "Certification" cert
+    WHERE cert."supplierId" = s."id"
+      AND ${predicate}
+  )`;
+}
 
 function freshnessSql(timeZone: string) {
   return Prisma.sql`

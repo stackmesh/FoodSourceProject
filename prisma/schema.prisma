@@ -66,10 +66,21 @@ enum ContactMethod {
   OTHER
 }
 
-enum CertificationStatus {
-  VERIFIED
-  UNVERIFIED
+enum CertificateStatus {
+  VALID
+  EXPIRING_SOON
   EXPIRED
+  SUSPENDED
+  REVOKED
+  UNKNOWN
+}
+
+// Certificate checks are separate from Supplier.verificationStatus.
+enum CertificateVerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
 }
 
 model Supplier {
@@ -168,22 +179,32 @@ model SupplierContact {
 }
 
 model Certification {
-  id                String              @id @default(uuid()) @db.Uuid
-  supplierId        String              @db.Uuid
-  name              String
-  documentUrl       String?
-  issuer            String?
-  issuedAt          DateTime?
-  expiresAt         DateTime?
-  status            CertificationStatus @default(UNVERIFIED)
-  verificationNotes String?
-  sourceUrl         String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  id                 String                        @id @default(uuid()) @db.Uuid
+  supplierId         String                        @db.Uuid
+  name               String
+  certificateNumber  String?
+  documentUrl        String?
+  issuer             String?
+  issuedAt           DateTime?
+  expiresAt          DateTime?
+  // Recorded status. SUSPENDED and REVOKED are authoritative.
+  // VALID, EXPIRING_SOON, EXPIRED and UNKNOWN are recalculated from expiresAt on read.
+  certificateStatus  CertificateStatus             @default(UNKNOWN)
+  verificationStatus CertificateVerificationStatus @default(UNVERIFIED)
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  verificationNotes  String?
+  sourceUrl          String?
+  isDemo             Boolean                       @default(false)
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
-  @@index([supplierId, status])
+  @@index([supplierId, certificateStatus])
+  @@index([supplierId, verificationStatus])
+  @@index([expiresAt])
+  @@index([isDemo])
 }
 
 model SupplierSource {

@@ -1,5 +1,8 @@
 import { demoWorkspaceKey } from "@/config/site";
 import type { ContactStatus } from "@/generated/prisma/client";
+import { resolveCertificateStatus } from "@/lib/certificate-status";
+import { serverTimeZone } from "@/lib/freshness";
+import { connection } from "next/server.js";
 import {
   hasRankingContext,
   type DiscoveryQuery,
@@ -78,12 +81,18 @@ function mapSupplier(row: {
   certifications: Array<{
     id: string;
     name: string;
+    certificateNumber: string | null;
     documentUrl: string | null;
     sourceUrl: string | null;
     issuer: string | null;
-    status: CatalogSupplier["certifications"][number]["status"];
-    expiresAt: Date | null;
+    certificateStatus: CatalogSupplier["certifications"][number]["recordedStatus"];
+    verificationStatus: CatalogSupplier["certifications"][number]["verificationStatus"];
+    verifiedAt: Date | null;
+    verifiedBy: string | null;
     verificationNotes: string | null;
+    issuedAt: Date | null;
+    expiresAt: Date | null;
+    isDemo: boolean;
   }>;
   sources: Array<{
     id: string;
@@ -93,7 +102,8 @@ function mapSupplier(row: {
     evidence: string | null;
     checkedAt: Date | null;
   }>;
-}): CatalogSupplier {
+}, now: Date): CatalogSupplier {
+  const timeZone = serverTimeZone();
   const products = row.products.map((product) => ({
     id: product.id,
     name: product.name,
@@ -133,8 +143,21 @@ function mapSupplier(row: {
     products,
     contacts: row.contacts,
     certifications: row.certifications.map((item) => ({
-      ...item,
+      id: item.id,
+      name: item.name,
+      certificateNumber: item.certificateNumber,
+      documentUrl: item.documentUrl,
+      sourceUrl: item.sourceUrl,
+      issuer: item.issuer,
+      recordedStatus: item.certificateStatus,
+      certificateStatus: resolveCertificateStatus(item.certificateStatus, item.expiresAt, now, timeZone),
+      verificationStatus: item.verificationStatus,
+      verifiedAt: item.verifiedAt?.toISOString() ?? null,
+      verifiedBy: item.verifiedBy,
+      verificationNotes: item.verificationNotes,
+      issuedAt: item.issuedAt?.toISOString() ?? null,
       expiresAt: item.expiresAt?.toISOString() ?? null,
+      isDemo: item.isDemo,
     })),
     sources: row.sources.map((source) => ({
       id: source.id,
@@ -149,15 +172,26 @@ function mapSupplier(row: {
   };
 }
 
+async function catalogNow() {
+  try {
+    await connection();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!message.includes("outside a request scope")) throw error;
+  }
+  return new Date();
+}
+
 async function readCatalog() {
   try {
+    const now = await catalogNow();
     const rows = await getPrisma().supplier.findMany({
       where: { isActive: true },
       include: supplierInclude,
       orderBy: { name: "asc" },
     });
 
-    return rows.map((row) => mapSupplier(row as SupplierRow & Parameters<typeof mapSupplier>[0]));
+    return rows.map((row) => mapSupplier(row as SupplierRow & Parameters<typeof mapSupplier>[0], now));
   } catch (error) {
     console.error(error);
     throw new DataError();
@@ -170,11 +204,12 @@ export async function getCatalog() {
 
 export async function getSupplier(slug: string) {
   try {
+    const now = await catalogNow();
     const row = await getPrisma().supplier.findFirst({
       where: { slug, isActive: true },
       include: supplierInclude,
     });
-    return row ? mapSupplier(row as Parameters<typeof mapSupplier>[0]) : null;
+    return row ? mapSupplier(row as Parameters<typeof mapSupplier>[0], now) : null;
   } catch (error) {
     console.error(error);
     throw new DataError();
@@ -185,11 +220,12 @@ export async function getSuppliersBySlugs(slugs: string[]) {
   if (!slugs.length) return [];
 
   try {
+    const now = await catalogNow();
     const rows = await getPrisma().supplier.findMany({
       where: { slug: { in: slugs }, isActive: true },
       include: supplierInclude,
     });
-    const bySlug = new Map(rows.map((row) => [row.slug, mapSupplier(row as Parameters<typeof mapSupplier>[0])]));
+    const bySlug = new Map(rows.map((row) => [row.slug, mapSupplier(row as Parameters<typeof mapSupplier>[0], now)]));
     return slugs.flatMap((slug) => {
       const supplier = bySlug.get(slug);
       return supplier ? [supplier] : [];
@@ -202,56 +238,42 @@ export async function getSuppliersBySlugs(slugs: string[]) {
 
 export async function searchSuppliers(query: DiscoveryQuery) {
   try {
+    const now = await catalogNow();
     const facets = await loadFacets();
     const showScore = hasRankingContext(query) || query.sort === "match";
+    const [ids, cohort] = await Promise.all([querySupplierIds(query), queryMatchCohort(query)]);
+    const population = await loadSuppliersByIds(ids, now);
+    const reports = new Map(
+      matchSuppliers(population, toMatchContext(query), cohort).map((report) => [report.supplierId, report]),
+    );
 
-    if (query.sort === "match" || showScore) {
-      const [ids, cohort] = await Promise.all([querySupplierIds(query), queryMatchCohort(query)]);
-      const population = await loadSuppliersByIds(ids);
-      const reports = new Map(
-        matchSuppliers(population, toMatchContext(query), cohort).map((report) => [report.supplierId, report]),
-      );
-
-      if (query.sort === "match") {
-        const ranked = [...population].sort((left, right) => compareByMatch(left, right, reports));
-        const pages = Math.max(1, Math.ceil(ranked.length / discoveryPageSize));
-        const page = Math.min(query.page, pages);
-        const start = (page - 1) * discoveryPageSize;
-        return {
-          items: ranked.slice(start, start + discoveryPageSize).map((supplier) => scoredItem(supplier, reports)),
-          total: ranked.length,
-          page,
-          pages,
-          showScore: true,
-          comparable: null,
-          facets,
-        };
-      }
-
-      const page = await querySupplierPage(query);
-      const byId = new Map(population.map((supplier) => [supplier.id, supplier]));
+    if (query.sort === "match") {
+      const ranked = [...population].sort((left, right) => compareByMatch(left, right, reports));
+      const pages = Math.max(1, Math.ceil(ranked.length / discoveryPageSize));
+      const page = Math.min(query.page, pages);
+      const start = (page - 1) * discoveryPageSize;
       return {
-        items: page.ids.flatMap((id) => {
-          const supplier = byId.get(id);
-          return supplier ? [scoredItem(supplier, reports)] : [];
-        }),
-        total: page.total,
-        page: page.page,
-        pages: page.pages,
+        items: ranked.slice(start, start + discoveryPageSize).map((supplier) => scoredItem(supplier, reports)),
+        total: ranked.length,
+        page,
+        pages,
         showScore: true,
-        comparable: page.comparable,
+        comparable: null,
         facets,
       };
     }
 
     const page = await querySupplierPage(query);
-    const suppliers = await loadSuppliersByIds(page.ids);
+    const byId = new Map(population.map((supplier) => [supplier.id, supplier]));
     return {
-      items: suppliers.map((supplier) => ({ supplier, score: null, report: null as MatchReport | null })),
+      items: page.ids.flatMap((id) => {
+        const supplier = byId.get(id);
+        return supplier ? [scoredItem(supplier, reports)] : [];
+      }),
       total: page.total,
       page: page.page,
       pages: page.pages,
-      showScore: false,
+      showScore,
       comparable: page.comparable,
       facets,
     };
@@ -262,8 +284,9 @@ export async function searchSuppliers(query: DiscoveryQuery) {
 }
 
 export async function scoreSupplier(supplier: CatalogSupplier, query: DiscoveryQuery) {
+  const now = await catalogNow();
   const [ids, cohort] = await Promise.all([querySupplierIds(query), queryMatchCohort(query)]);
-  const peers = await loadSuppliersByIds(ids);
+  const peers = await loadSuppliersByIds(ids, now);
   const population = peers.some((item) => item.id === supplier.id) ? peers : [...peers, supplier];
   return (
     matchSuppliers(population, toMatchContext(query), cohort).find((report) => report.supplierId === supplier.id) ??
@@ -306,20 +329,20 @@ function byNameThenId(left: CatalogSupplier, right: CatalogSupplier) {
   return left.name.localeCompare(right.name, "ru") || left.id.localeCompare(right.id);
 }
 
-async function loadSuppliersByIds(ids: string[]) {
+async function loadSuppliersByIds(ids: string[], now: Date) {
   if (!ids.length) return [];
   const rows = await getPrisma().supplier.findMany({
     where: { id: { in: ids }, isActive: true },
     include: supplierInclude,
   });
-  const byId = new Map(rows.map((row) => [row.id, mapSupplier(row as Parameters<typeof mapSupplier>[0])]));
+  const byId = new Map(rows.map((row) => [row.id, mapSupplier(row as Parameters<typeof mapSupplier>[0], now)]));
   return ids.flatMap((id) => {
     const supplier = byId.get(id);
     return supplier ? [supplier] : [];
   });
 }
 
-export async function getDashboard() {
+export async function getDashboard(now: Date) {
   try {
     const prisma = getPrisma();
     const [supplierCount, categoryCount, savedCount, regions, recentRows, popular] = await Promise.all([
@@ -345,7 +368,7 @@ export async function getDashboard() {
       categoryCount,
       regionCount: regions.length,
       savedCount,
-      recent: recentRows.map((row) => mapSupplier(row as Parameters<typeof mapSupplier>[0])),
+      recent: recentRows.map((row) => mapSupplier(row as Parameters<typeof mapSupplier>[0], now)),
       popular,
     };
   } catch (error) {

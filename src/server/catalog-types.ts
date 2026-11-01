@@ -1,5 +1,6 @@
 import type {
-  CertificationStatus,
+  CertificateStatus,
+  CertificateVerificationStatus,
   ContactMethod,
   ContactStatus,
   ContactType,
@@ -28,12 +29,21 @@ export type CatalogProduct = {
 export type CatalogCertification = {
   id: string;
   name: string;
+  certificateNumber: string | null;
   documentUrl: string | null;
   sourceUrl: string | null;
   issuer: string | null;
-  status: CertificationStatus;
-  expiresAt: string | null;
+  /** Status stored in the database. Suspension and revocation are kept here. */
+  recordedStatus: CertificateStatus;
+  /** Status shown in the catalog. Recalculated from the expiration date on each read. */
+  certificateStatus: CertificateStatus;
+  verificationStatus: CertificateVerificationStatus;
+  verifiedAt: string | null;
+  verifiedBy: string | null;
   verificationNotes: string | null;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  isDemo: boolean;
 };
 
 export type CatalogContact = {

@@ -95,10 +95,11 @@ try {
       ],
       certs: supplier.certs.map((cert) => ({
         name: cert.name,
-        status: cert.status,
+        certificateStatus: cert.certificateStatus,
         issuer: "Демонстрационный орган",
         sourceUrl: null,
         notes: "Запись вымышлена. Документ не проверялся и не подтверждает соответствие.",
+        expiresInDays: cert.expiresInDays,
       })),
       sources: [
         {
@@ -247,18 +248,22 @@ async function upsertSupplier(db, supplier, categoryIds) {
   }
 
   for (const cert of supplier.certs) {
+    const expiresAt =
+      typeof cert.expiresInDays === "number" ? new Date(Date.now() + cert.expiresInDays * 86_400_000) : null;
     await db.query(
       `INSERT INTO "Certification"
-        ("id", "supplierId", "name", "status", "issuer", "verificationNotes", "sourceUrl", "updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`,
+        ("id", "supplierId", "name", "certificateStatus", "verificationStatus", "issuer", "verificationNotes", "sourceUrl", "expiresAt", "isDemo", "updatedAt")
+       VALUES ($1,$2,$3,$4,'UNVERIFIED',$5,$6,$7,$8,$9,NOW())`,
       [
         idFor(`cert:${supplier.slug}:${cert.name}`),
         supplierId,
         cert.name,
-        cert.status,
+        cert.certificateStatus ?? (cert.status === "EXPIRED" ? "EXPIRED" : "UNKNOWN"),
         cert.issuer,
         cert.notes,
         cert.sourceUrl,
+        expiresAt,
+        supplier.dataType === "DEMO",
       ],
     );
   }

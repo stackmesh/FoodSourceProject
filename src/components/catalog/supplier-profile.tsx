@@ -1,4 +1,5 @@
-import { CertificationBadge, SupplierBadges } from "@/components/catalog/badges";
+import { SupplierBadges } from "@/components/catalog/badges";
+import { CertificateFacts, CertificateSummary } from "@/components/catalog/certificate-badges";
 import { ProductPhoto, SupplierLogo } from "@/components/catalog/catalog-media";
 import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
 import { MatchScore } from "@/components/catalog/match-score";
@@ -160,11 +161,7 @@ export async function SupplierProfile({
           <div>
             <p className="text-xs text-muted-foreground">{catalog("certifications")}</p>
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {supplier.certifications.length ? (
-                supplier.certifications.map((item) => <CertificationBadge key={item.id} status={item.status} />)
-              ) : (
-                <span className="text-sm text-muted-foreground">{catalog("noCerts")}</span>
-              )}
+              <CertificateSummary certifications={supplier.certifications} align="start" />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">{t("certCheck")}</p>
           </div>
@@ -291,8 +288,9 @@ export async function SupplierProfile({
               <Shield className="size-4 text-muted-foreground" />
               {catalog("certifications")}
             </h2>
+            <p className="mt-3 text-sm text-muted-foreground">{catalog("certificateNotProof")}</p>
             {supplier.dataType === "DEMO" && supplier.certifications.length ? (
-              <p className="mt-3 flex items-center gap-1.5 text-sm text-amber-700">
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-amber-700">
                 <TriangleAlert className="size-4 shrink-0" />
                 {catalog("demoCerts")}
               </p>
@@ -301,36 +299,7 @@ export async function SupplierProfile({
               <ul className="mt-3 space-y-3">
                 {supplier.certifications.map((item) => (
                   <li key={item.id} className="rounded-lg border px-3 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <CertificationBadge status={item.status} />
-                    </div>
-                    {item.issuer ? (
-                      <p className="mt-1 text-xs text-muted-foreground">{item.issuer}</p>
-                    ) : null}
-                    {item.verificationNotes ? (
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.verificationNotes}</p>
-                    ) : null}
-                    <p className="mt-2 text-xs leading-5">
-                      {item.documentUrl ? (
-                        <>
-                          <span className="text-muted-foreground">{t("document")}: </span>
-                          <a href={item.documentUrl} target="_blank" rel="noreferrer" className="break-all text-primary hover:underline">
-                            {item.documentUrl}
-                          </a>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">{t("noDocument")}</span>
-                      )}
-                    </p>
-                    {item.sourceUrl ? (
-                      <p className="mt-1 text-xs leading-5">
-                        <span className="text-muted-foreground">{t("source")}: </span>
-                        <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="break-all text-primary hover:underline">
-                          {item.sourceUrl}
-                        </a>
-                      </p>
-                    ) : null}
+                    <CertificateFacts item={item} locale={locale} timeZone={timeZone} />
                   </li>
                 ))}
               </ul>

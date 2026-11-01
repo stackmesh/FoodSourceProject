@@ -49,7 +49,7 @@ Geography: the same requested city or region is exact. One of two requested plac
 
 Price and MOQ: only finite amounts of zero or more are used. `кг` and `kg` are the same unit, as are the other aliases in `unitAliases`. Lower is better inside one currency and unit, scaled from the minimum to the maximum of that peer group. A different unit is not comparable. A negative, infinite, or missing amount is unavailable. When the search sets a maximum and there is no peer group, a value above the maximum is a mismatch. A value within the maximum scores 0.50 at the limit and 1 at zero.
 
-Certifications: a verified record on a real supplier is exact. An expired or unverified record is a mismatch, except when the search asks for certification, where an unverified claim is partial (0.45). No records, and every demonstration certificate, are unavailable.
+Certifications: only a real supplier's certificate that is both verified and still current (valid or expiring soon) is exact. An expired, suspended, or revoked certificate, or evidence that was rejected, is a mismatch and scores zero. Unverified, pending, and unknown certificates stay unavailable: they are not confirmed and they are not treated as a failed check. Asking the search for certification records does not turn an unverified claim into a partial match. No records, and every demonstration certificate, are unavailable. A verified certificate that has since expired is not current.
 
 Delivery: text that names the requested city or region scores as a statement, not as a verified promise. Text that does not name that place is a mismatch. No text is unavailable. Text with no requested place is not requested.
 

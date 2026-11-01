@@ -7,6 +7,7 @@ import {
   matchQuality,
   matchSuppliers,
   resolveMatchWeights,
+  type MatchCertification,
   type MatchSupplier,
 } from "./matching";
 
@@ -37,6 +38,13 @@ assert.throws(
 
 const productOnly = resolveMatchWeights({ product: 70, geography: 0, price: 0, moq: 0, certification: 0, delivery: 0 });
 assert.equal(productOnly.product, 1);
+
+function cert(
+  certificateStatus: MatchCertification["certificateStatus"],
+  verificationStatus: MatchCertification["verificationStatus"] = "UNVERIFIED",
+): MatchCertification {
+  return { certificateStatus, verificationStatus };
+}
 
 function supplier(patch: Partial<MatchSupplier> & Pick<MatchSupplier, "id" | "name">): MatchSupplier {
   return {
@@ -88,7 +96,7 @@ const poultry = supplier({
       deliveryNotes: "Демо: доставка по региону",
     }),
   ],
-  certifications: [{ status: "UNVERIFIED" }],
+  certifications: [cert("UNKNOWN")],
 });
 
 const [found] = matchSuppliers([dairy], { query: "МОЛОКО", category: "dairy", city: "Москва" });
@@ -179,7 +187,7 @@ const knownUnverified = supplier({
   name: "Заявлено",
   dataType: "REAL",
   products: [product({ name: "Масло", categorySlug: "grocery" })],
-  certifications: [{ status: "UNVERIFIED" }],
+  certifications: [cert("UNKNOWN")],
 });
 const unknownCerts = supplier({
   id: "unknown",
@@ -193,32 +201,69 @@ const verified = supplier({
   dataType: "REAL",
   verificationStatus: "VERIFIED",
   products: [product({ name: "Масло", categorySlug: "grocery" })],
-  certifications: [{ status: "VERIFIED" }],
+  certifications: [cert("VALID", "VERIFIED")],
 });
 const expired = supplier({
   id: "expired",
   name: "Истекло",
   dataType: "REAL",
   products: [product({ name: "Масло", categorySlug: "grocery" })],
-  certifications: [{ status: "EXPIRED" }],
+  certifications: [cert("EXPIRED", "VERIFIED")],
 });
 const certReports = matchSuppliers([knownUnverified, unknownCerts, verified, expired], { category: "grocery" });
 assert.equal(certReports[0].factors.find((factor) => factor.key === "certification")?.reason, "unverified_not_counted");
-assert.equal(certReports[0].factors.find((factor) => factor.key === "certification")?.ratio, 0);
+assert.equal(certReports[0].factors.find((factor) => factor.key === "certification")?.status, "missing");
+assert.equal(certReports[0].factors.find((factor) => factor.key === "certification")?.ratio, null);
 assert.equal(certReports[0].verifiedCertifications, 0);
 assert.equal(certReports[1].factors.find((factor) => factor.key === "certification")?.status, "missing");
 assert.equal(certReports[1].factors.find((factor) => factor.key === "certification")?.points, null);
 assert.equal(factorGrade(certReports[1].factors.find((factor) => factor.key === "certification")!), "unavailable");
-assert.equal(factorGrade(certReports[0].factors.find((factor) => factor.key === "certification")!), "mismatch");
+assert.equal(factorGrade(certReports[0].factors.find((factor) => factor.key === "certification")!), "unavailable");
 assert.equal(certReports[2].factors.find((factor) => factor.key === "certification")?.reason, "verified");
+assert.equal(certReports[2].verifiedCertifications, 1);
 assert.equal(certReports[2].countsAsVerifiedSupplier, true);
 assert.equal(certReports[3].factors.find((factor) => factor.key === "certification")?.reason, "expired_not_verified");
+assert.equal(factorGrade(certReports[3].factors.find((factor) => factor.key === "certification")!), "mismatch");
 assert.equal(certReports[1].score, certReports[0].score);
 assert.ok((certReports[2].score ?? 0) > (certReports[0].score ?? 0));
 
 const [preferredCert] = matchSuppliers([knownUnverified], { category: "grocery", certified: true });
-assert.equal(preferredCert.factors.find((factor) => factor.key === "certification")?.reason, "unverified_partial");
-assert.equal(factorGrade(preferredCert.factors.find((factor) => factor.key === "certification")!), "partial");
+assert.equal(preferredCert.factors.find((factor) => factor.key === "certification")?.reason, "unverified_not_counted");
+assert.equal(factorGrade(preferredCert.factors.find((factor) => factor.key === "certification")!), "unavailable");
+
+const statusCases = [
+  [cert("VALID", "UNVERIFIED"), "unverified_not_counted", "missing"],
+  [cert("VALID", "PENDING"), "unverified_not_counted", "missing"],
+  [cert("UNKNOWN", "VERIFIED"), "unverified_not_counted", "missing"],
+  [cert("EXPIRING_SOON", "VERIFIED"), "verified", "scored"],
+  [cert("SUSPENDED", "VERIFIED"), "suspended_not_current", "scored"],
+  [cert("REVOKED", "UNVERIFIED"), "revoked_not_current", "scored"],
+  [cert("VALID", "REJECTED"), "rejected_not_counted", "scored"],
+] as const;
+for (const [entry, reason, status] of statusCases) {
+  const [report] = matchSuppliers([
+    supplier({
+      id: reason,
+      name: reason,
+      dataType: "REAL",
+      products: [product({ name: "Масло", categorySlug: "grocery" })],
+      certifications: [entry],
+    }),
+  ], { category: "grocery" });
+  assert.equal(report.factors.find((factor) => factor.key === "certification")?.reason, reason);
+  assert.equal(report.factors.find((factor) => factor.key === "certification")?.status, status);
+}
+const [demoVerified] = matchSuppliers([
+  supplier({
+    id: "demo-verified",
+    name: "Демо проверка",
+    dataType: "DEMO",
+    products: [product({ name: "Масло", categorySlug: "grocery" })],
+    certifications: [cert("VALID", "VERIFIED")],
+  }),
+], { category: "grocery" });
+assert.equal(demoVerified.factors.find((factor) => factor.key === "certification")?.reason, "demonstration_not_evidence");
+assert.equal(demoVerified.verifiedCertifications, 0);
 
 const stated = supplier({
   id: "stated",
@@ -284,7 +329,7 @@ const conflict = matchSuppliers(
       city: "Казань",
       region: "Республика Татарстан",
       products: [product({ name: "Молоко", categorySlug: "dairy", price: 80, moq: 10, unit: "кг" })],
-      certifications: [{ status: "VERIFIED" }],
+      certifications: [cert("VALID", "VERIFIED")],
     }),
     supplier({
       id: "split",

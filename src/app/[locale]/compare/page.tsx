@@ -6,6 +6,7 @@ import { CompareView } from "@/components/catalog/compare-view";
 import { ExportComparisonButton } from "@/components/catalog/export-comparison";
 import { assertLocale } from "@/i18n/locale";
 import { compareCookieName, matchContextCookieName, parseCompareSlugs, parseMatchContext } from "@/lib/comparison";
+import { requestClock } from "@/lib/today";
 import { getSuppliersBySlugs, getWorkspace } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
@@ -63,6 +64,7 @@ async function Comparison({ locale }: { locale: string }) {
           suppliers={loaded.suppliers}
           workspace={loaded.workspace}
           locale={locale}
+          timeZone={loaded.timeZone}
           context={loaded.context}
         />
       )}
@@ -75,10 +77,11 @@ async function loadComparison() {
     const jar = await cookies();
     const slugs = parseCompareSlugs(jar.get(compareCookieName)?.value);
     const stored = parseMatchContext(jar.get(matchContextCookieName)?.value);
-    const [suppliers, workspace] = await Promise.all([getSuppliersBySlugs(slugs), getWorkspace()]);
+    const [suppliers, workspace, clock] = await Promise.all([getSuppliersBySlugs(slugs), getWorkspace(), requestClock()]);
     return {
       suppliers,
       workspace,
+      timeZone: clock.timeZone,
       context: {
         query: stored.query || undefined,
         category: stored.category || undefined,

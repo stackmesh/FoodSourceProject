@@ -1,3 +1,5 @@
+import { isConfirmedCertificate } from "@/lib/certificate-status";
+
 export const defaultMatchWeights = {
   product: 0.35,
   geography: 0.25,
@@ -20,7 +22,10 @@ export type MatchContext = {
   maxPrice?: number | null;
   /** Highest acceptable minimum order. Values at or below it can be scored without a peer group. */
   maxMoq?: number | null;
-  /** When true, an unverified certificate claim is a partial match. A verified certificate stays exact. */
+  /**
+   * Search filter for real certification records.
+   * It does not award points to an unverified certificate.
+   */
   certified?: boolean;
   weights?: Partial<MatchWeights>;
 };
@@ -38,7 +43,9 @@ export type MatchProduct = {
 };
 
 export type MatchCertification = {
-  status: "VERIFIED" | "UNVERIFIED" | "EXPIRED";
+  /** Effective validity, already resolved from the expiration date. */
+  certificateStatus: "VALID" | "EXPIRING_SOON" | "EXPIRED" | "SUSPENDED" | "REVOKED" | "UNKNOWN";
+  verificationStatus: "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
 };
 
 export type MatchSupplier = {
@@ -98,8 +105,10 @@ export type MatchReason =
   | "no_peer_value"
   | "verified"
   | "unverified_not_counted"
-  | "unverified_partial"
   | "expired_not_verified"
+  | "suspended_not_current"
+  | "revoked_not_current"
+  | "rejected_not_counted"
   | "no_certification_records"
   | "demonstration_not_evidence"
   | "stated_for_requested_place_unverified"
@@ -204,7 +213,7 @@ export function matchSuppliers(
     const price = offerComparison(supplier, priceGroup, "price");
     const moq = offerComparison(supplier, moqGroup, "moq");
     const verifiedCertifications =
-      supplier.dataType === "DEMO" ? 0 : supplier.certifications.filter((item) => item.status === "VERIFIED").length;
+      supplier.dataType === "DEMO" ? 0 : supplier.certifications.filter((item) => isConfirmedCertificate(item)).length;
     return {
       supplierId: supplier.id,
       score,
@@ -284,26 +293,37 @@ function geographyFactor(supplier: MatchSupplier, context: MatchContext, weight:
   return factor("geography", weight, "not_requested", null, "no_location_requested");
 }
 
-function certificationFactor(supplier: MatchSupplier, context: MatchContext, weight: number): MatchFactor {
+function certificationFactor(supplier: MatchSupplier, _context: MatchContext, weight: number): MatchFactor {
   if (supplier.dataType === "DEMO") {
     return factor("certification", weight, "missing", null, "demonstration_not_evidence");
   }
-  const verified = supplier.certifications.filter((item) => item.status === "VERIFIED");
-  if (verified.length > 0) return factor("certification", weight, "scored", 1, "verified");
   if (supplier.certifications.length === 0) {
     return factor("certification", weight, "missing", null, "no_certification_records");
   }
-  const onlyExpired = supplier.certifications.every((item) => item.status === "EXPIRED");
-  if (!onlyExpired && context.certified) {
-    return factor("certification", weight, "scored", 0.45, "unverified_partial");
+  if (supplier.certifications.some((item) => isConfirmedCertificate(item))) {
+    return factor("certification", weight, "scored", 1, "verified");
   }
-  return factor(
-    "certification",
-    weight,
-    "scored",
-    0,
-    onlyExpired ? "expired_not_verified" : "unverified_not_counted",
+  const failed = supplier.certifications.filter((item) => knownCertificateFailure(item));
+  if (failed.length === 0) {
+    return factor("certification", weight, "missing", null, "unverified_not_counted");
+  }
+  return factor("certification", weight, "scored", 0, certificateFailureReason(failed));
+}
+
+function knownCertificateFailure(certificate: MatchCertification) {
+  return (
+    certificate.verificationStatus === "REJECTED" ||
+    certificate.certificateStatus === "EXPIRED" ||
+    certificate.certificateStatus === "SUSPENDED" ||
+    certificate.certificateStatus === "REVOKED"
   );
+}
+
+function certificateFailureReason(certificates: MatchCertification[]): MatchReason {
+  if (certificates.some((item) => item.verificationStatus === "REJECTED")) return "rejected_not_counted";
+  if (certificates.some((item) => item.certificateStatus === "REVOKED")) return "revoked_not_current";
+  if (certificates.some((item) => item.certificateStatus === "SUSPENDED")) return "suspended_not_current";
+  return "expired_not_verified";
 }
 
 function deliveryFactor(supplier: MatchSupplier, context: MatchContext, weight: number): MatchFactor {

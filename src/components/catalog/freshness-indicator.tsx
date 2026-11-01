@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { formatDate } from "@/lib/format";
 import { freshnessFacts, type FreshnessStatus } from "@/lib/freshness";
 import type { CatalogSupplier } from "@/server/catalog-types";
@@ -34,25 +35,30 @@ export async function FreshnessIndicator({
   const checked = dateText(facts.sourceCheckedAt, locale);
 
   if (variant === "card") {
+    const confidence =
+      supplier.verificationStatus === "VERIFIED" || supplier.verificationStatus === "PARTIALLY_VERIFIED"
+        ? "font-medium text-primary"
+        : supplier.verificationStatus === "EXPIRED"
+          ? "font-medium text-amber-700"
+          : "text-muted-foreground";
     return (
-      <section className="mt-4 rounded-lg border px-3 py-3 text-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium ${tones[facts.status]}`}>
+      <section className="mt-5 border-t pt-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">{t("sourceSection")}</h3>
+          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${tones[facts.status]}`}>
             {t(facts.status)}
           </span>
-          <p className="text-muted-foreground">
-            {t("recordUpdated")}: <span className="text-foreground">{updated}</span>
-          </p>
         </div>
-        {verified ? (
-          <p className="mt-2 text-muted-foreground">
-            {t("verified")}: <span className="text-foreground">{verified}</span>
-          </p>
-        ) : null}
-        <p className="mt-2 text-muted-foreground">
-          {t("source")}: <SourceLine facts={facts} unavailable={unavailable} demoLabel={catalog("demoSource")} />
-        </p>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("disclaimer")}</p>
+        <dl className="mt-3 space-y-2.5 text-sm">
+          <SourceFact label={t("source")}>
+            <SourceLine facts={facts} unavailable={unavailable} demoLabel={catalog("demoSource")} />
+          </SourceFact>
+          <SourceFact label={t("lastReviewed")}>{checked ?? unavailable}</SourceFact>
+          <SourceFact label={t("confidence")}>
+            <span className={confidence}>{catalog(`verification.${supplier.verificationStatus}`)}</span>
+          </SourceFact>
+        </dl>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">{t("sourceDisclaimer")}</p>
       </section>
     );
   }
@@ -78,6 +84,15 @@ export async function FreshnessIndicator({
         {t("source")}: <SourceLine facts={facts} unavailable={unavailable} demoLabel={catalog("demoSource")} />
       </p>
     </section>
+  );
+}
+
+function SourceFact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-foreground">{children}</dd>
+    </div>
   );
 }
 

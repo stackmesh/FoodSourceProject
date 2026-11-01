@@ -1,13 +1,10 @@
-import { CertificateStatus } from "@/components/catalog/badges";
 import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { FreshnessIndicator } from "@/components/catalog/freshness-indicator";
-import { MatchScore } from "@/components/catalog/match-score";
 import { CompareButton, FavoriteButton } from "@/components/catalog/supplier-actions";
-import { ContactStatusForm } from "@/components/catalog/workspace-forms";
+import { isConfirmedCertificate } from "@/lib/certificate-status";
 import { moqLine, placeLine, priceLine } from "@/components/catalog/supplier-facts";
-import { supplierCertificateMark } from "@/lib/certificate-mark";
 import { Link } from "@/i18n/navigation";
-import type { CatalogSupplier, WorkspaceEntry } from "@/server/catalog-types";
+import type { CatalogSupplier } from "@/server/catalog-types";
 import type { MatchReport } from "@/server/matching";
 import { getTranslations } from "next-intl/server";
 import {
@@ -64,12 +61,9 @@ export async function SupplierCard({
   locale,
   saved,
   comparing,
-  showScore,
   report,
   context,
   profileHref,
-  tracking,
-  today,
   observedAt,
   timeZone,
 }: {
@@ -77,7 +71,6 @@ export async function SupplierCard({
   locale: string;
   saved: boolean;
   comparing: boolean;
-  showScore: boolean;
   report: MatchReport | null;
   context?: {
     query: string;
@@ -89,8 +82,6 @@ export async function SupplierCard({
     certified?: boolean;
   };
   profileHref: string;
-  tracking: WorkspaceEntry | null;
-  today: string;
   observedAt: string;
   timeZone: string;
 }) {
@@ -106,121 +97,137 @@ export async function SupplierCard({
   const place = placeLine(supplier);
   const price = priceLine(supplier, locale, (value) => t("priceFrom", { value }));
   const moq = moqLine(supplier, locale, (value) => t("moqFrom", { value }));
-  const certificate = supplierCertificateMark(supplier);
-  const delivery = supplier.products.find((product) => product.deliveryNotes)?.deliveryNotes;
+  const delivery = supplier.products.find((product) => product.deliveryNotes)?.deliveryNotes ?? null;
   const TypeIcon = typeIcons[supplier.supplierType];
+  const confirmedCertificates = supplier.certifications.filter(
+    (item) => !item.isDemo && isConfirmedCertificate(item),
+  ).length;
   const verificationTone =
     supplier.verificationStatus === "EXPIRED"
-      ? "border-amber-200 text-amber-800"
+      ? "border-amber-200 bg-amber-50 text-amber-900"
       : supplier.verificationStatus === "UNVERIFIED"
         ? "border-border text-muted-foreground"
-        : "border-primary/30 text-primary";
+        : "border-primary/30 bg-primary/10 text-primary";
 
   return (
-    <article className="flex h-full flex-col rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+    <article className="flex h-full min-w-0 flex-col rounded-xl border bg-card p-4 shadow-sm sm:p-5">
       <div className="flex items-start gap-3">
         <SupplierLogo
           supplier={supplier}
-          size={48}
+          size={56}
           demoAlt={t("logoAlt", { name: supplier.name })}
           realAlt={t("logoAltReal", { name: supplier.name })}
           missingAlt={t("logoMissing", { name: supplier.name })}
         />
-        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-          <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold tracking-tight">
-            <Link href={profileHref} className="truncate hover:text-primary">
-              {supplier.name}
-            </Link>
-            <NameShield status={supplier.verificationStatus} />
-          </h2>
-          <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="flex min-w-0 items-center gap-1.5 text-base font-semibold tracking-tight">
+              <Link href={profileHref} className="truncate hover:text-primary">
+                {supplier.name}
+              </Link>
+              <NameShield status={supplier.verificationStatus} />
+            </h2>
+            <FavoriteButton supplierId={supplier.id} saved={saved} appearance="icon" />
+          </div>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <MapPin className="size-3.5 shrink-0" />
+            <span className="truncate">{place || t("unavailable")}</span>
+          </p>
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-x-6">
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground md:col-start-1 md:row-start-1">
-          <MapPin className="size-4 shrink-0 text-primary" />
-          <span className="truncate">{place || t("unavailable")}</span>
-        </p>
-        <div className="md:col-start-2 md:row-span-2 md:row-start-1">
-          <ContactStatusForm
-            supplierId={supplier.id}
-            status={tracking?.contactStatus ?? "NOT_CONTACTED"}
-            appearance="card"
-            followUpOn={tracking?.nextFollowUpOn ?? null}
-            lastContactOn={tracking?.lastContactOn ?? null}
-            contactPerson={tracking?.contactPerson ?? null}
-            today={today}
-            locale={locale}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2 md:col-start-1 md:row-start-2">
+
+      <div className="mt-3 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {supplier.dataType === "DEMO" ? (
-            <span className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900">
-              {t("demo")}
+            <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+              {t("demoMark")}
             </span>
           ) : null}
-          <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${verificationTone}`}>
-            <NameShield status={supplier.verificationStatus} compact />
+          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${verificationTone}`}>
             {t(`verification.${supplier.verificationStatus}`)}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
             <TypeIcon className="size-3.5" />
             {t(`types.${supplier.supplierType}`)}
           </span>
           {categories.map(([slug, name]) => {
             const Icon = categoryIcons[slug] ?? Apple;
             return (
-              <span key={slug} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary">
+              <span key={slug} className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
                 <Icon className="size-3.5" />
                 {name}
               </span>
             );
           })}
         </div>
+        <span
+          className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
+            report?.score == null
+              ? "border-border text-muted-foreground"
+              : "border-primary/30 bg-primary/10 text-primary"
+          }`}
+          title={t("scoreHint")}
+        >
+          {report?.score == null ? t("scoreUnavailable") : t("scoreMatch", { score: report.score })}
+        </span>
       </div>
 
-      <dl className="mt-4 overflow-hidden rounded-lg border text-sm">
-        <Fact
-          icon={Coins}
-          label={t("price")}
-          value={price.kind === "missing" ? t("priceUnavailable") : price.text}
-          missing={price.kind === "missing"}
-        />
-        <Fact
-          icon={Package}
-          label={t("moq")}
-          value={moq.kind === "missing" ? t("moqUnavailable") : moq.text}
-          missing={moq.kind === "missing"}
-        />
-        <div className="flex items-center justify-between gap-3 border-t px-3 py-3">
-          <dt className="flex items-center gap-2 text-muted-foreground">
-            <span className="grid size-7 place-items-center rounded-md border">
-              <Award className="size-3.5" />
-            </span>
-            {t("certifications")}
-          </dt>
-          <dd>
-            <CertificateStatus mark={certificate} />
-          </dd>
-        </div>
-      </dl>
+      <section className="mt-5 border-t pt-4">
+        <h3 className="text-sm font-semibold">{t("commercialSection")}</h3>
+        <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4">
+          <CommercialFact
+            icon={Coins}
+            label={t("price")}
+            value={price.kind === "missing" ? t("priceUnavailable") : price.text}
+            missing={price.kind === "missing"}
+          />
+          <CommercialFact
+            icon={Package}
+            label={t("moq")}
+            value={moq.kind === "missing" ? t("moqUnavailable") : moq.text}
+            missing={moq.kind === "missing"}
+          />
+          <CommercialFact
+            icon={Award}
+            label={t("certifications")}
+            value={
+              supplier.certifications.length === 0
+                ? t("noCerts")
+                : t("certificateVerifiedCount", {
+                    verified: confirmedCertificates,
+                    total: supplier.certifications.length,
+                  })
+            }
+            missing={supplier.certifications.length === 0}
+          />
+          <CommercialFact
+            icon={Truck}
+            label={t("delivery")}
+            value={delivery ? t("deliveryRecorded") : t("deliveryUnavailable")}
+            missing={!delivery}
+          />
+        </dl>
+      </section>
 
-      <div className="mt-4">
-        {delivery ? (
-          <>
-            <div className="flex gap-2 rounded-lg bg-primary/5 px-3 py-3 text-sm leading-6">
-              <Truck className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p>{delivery}</p>
+      {supplier.description || delivery ? (
+        <section className="mt-5 border-t pt-4">
+          <h3 className="text-sm font-semibold">{t("overviewSection")}</h3>
+          {supplier.description ? (
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{supplier.description}</p>
+          ) : null}
+          {delivery ? <p className="mt-2 text-sm leading-6">{delivery}</p> : null}
+          {delivery ? (
+            <div className="mt-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <Info className="size-3.5 text-muted-foreground" />
+                {t("deliveryInfo")}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{t("deliveryRegionsNote")}</p>
             </div>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Info className="size-3.5" />
-              {t("deliveryStated")}
-            </p>
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">{t("deliveryUnavailable")}</p>
-        )}
-      </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <FreshnessIndicator
         supplier={supplier}
         locale={locale}
@@ -228,21 +235,15 @@ export async function SupplierCard({
         timeZone={timeZone}
         variant="card"
       />
-      {showScore ? (
-        <div className="mt-4" title={t("scoreHint")}>
-          <MatchScore report={report} />
-        </div>
-      ) : null}
-      <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
+      <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
         <Link
           href={profileHref}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium hover:bg-accent"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium hover:bg-accent"
         >
           <FileText className="size-4" />
-          {t("view")}
+          {t("viewProfile")}
         </Link>
-        <FavoriteButton supplierId={supplier.id} saved={saved} appearance="labeled" className="h-10 rounded-lg" />
-        <CompareButton slug={supplier.slug} active={comparing} context={context} className="h-10 w-full rounded-lg" showIcon />
+        <CompareButton slug={supplier.slug} active={comparing} context={context} className="h-11 w-full rounded-lg" showIcon />
       </div>
     </article>
   );
@@ -265,7 +266,7 @@ function NameShield({
   return <ShieldQuestion className={`${size} text-muted-foreground`} aria-hidden />;
 }
 
-function Fact({
+function CommercialFact({
   icon: Icon,
   label,
   value,
@@ -277,14 +278,14 @@ function Fact({
   missing: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-t px-3 py-3 first:border-t-0">
-      <dt className="flex items-center gap-2 text-muted-foreground">
-        <span className="grid size-7 place-items-center rounded-md border">
-          <Icon className="size-3.5" />
-        </span>
+    <div className="min-w-0">
+      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Icon className="size-3.5 shrink-0" />
         {label}
       </dt>
-      <dd className={missing ? "text-muted-foreground" : "font-medium"}>{value}</dd>
+      <dd className={`mt-1 text-sm font-semibold leading-5 ${missing ? "font-medium text-muted-foreground" : ""}`}>
+        {value}
+      </dd>
     </div>
   );
 }

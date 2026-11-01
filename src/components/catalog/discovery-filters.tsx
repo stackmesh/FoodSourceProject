@@ -61,6 +61,8 @@ export function DiscoveryFilters({
     const sort = String(formData.get("sort") ?? "name");
     if (sort && sort !== "name") params.set("sort", sort);
     if (formData.get("certified") === "on") params.set("certified", "1");
+    const certificate = String(formData.get("certificate") ?? "");
+    if (certificate) params.set("certificate", certificate);
     const search = params.toString();
     router.push(search ? `${pathname}?${search}` : pathname);
   }
@@ -74,6 +76,7 @@ export function DiscoveryFilters({
     query.type,
     query.sort,
     query.certified ? "1" : "",
+    query.certificate,
     query.maxPrice ?? "",
     query.maxMoq ?? "",
     query.contact,
@@ -160,6 +163,14 @@ export function DiscoveryFilters({
                 {freshness(status)}
               </option>
             ))}
+          </Select>
+          <Select name="certificate" label={t("certificateFilter")} defaultValue={query.certificate}>
+            <option value="">{t("certificateAny")}</option>
+            <option value="verified">{t("certificateVerified")}</option>
+            <option value="valid">{t("certificateValid")}</option>
+            <option value="expiring">{t("certificateExpiring")}</option>
+            <option value="expired">{t("certificateExpired")}</option>
+            <option value="unverified">{t("certificateUnverified")}</option>
           </Select>
           <Select name="type" label={t("type")} defaultValue={query.type}>
             <option value="">{t("any")}</option>

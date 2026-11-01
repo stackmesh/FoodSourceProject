@@ -1,7 +1,6 @@
-import { CertificateStatus } from "@/components/catalog/badges";
+import { CertificateFacts } from "@/components/catalog/certificate-badges";
 import { ProductPhoto, SupplierLogo } from "@/components/catalog/catalog-media";
 import { FavoriteButton } from "@/components/catalog/supplier-actions";
-import { supplierCertificateMark, type CertificateMark } from "@/lib/certificate-mark";
 import { ContactStatusForm, NoteEditor } from "@/components/catalog/workspace-forms";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
@@ -24,7 +23,6 @@ type Cell = {
   best: boolean;
   note?: string;
   noteTone?: "positive" | "caution" | "neutral";
-  certificate?: CertificateMark;
   status?: FactorStatus;
   points?: number | null;
   statusLabel?: string;
@@ -35,11 +33,13 @@ export async function CompareView({
   suppliers,
   workspace,
   locale,
+  timeZone,
   context,
 }: {
   suppliers: CatalogSupplier[];
   workspace: WorkspaceEntry[];
   locale: string;
+  timeZone: string;
   context?: MatchContext;
 }) {
   const t = await getTranslations("Compare");
@@ -118,6 +118,14 @@ export async function CompareView({
                       <ProductCompareCell supplier={suppliers[index]} locale={locale} catalog={catalog} cell={cell} />
                     ) : row.key === "verification" ? (
                       <VerificationCell supplier={suppliers[index]} label={cell.text} />
+                    ) : row.key === "certs" ? (
+                      <CertificateCompareCell
+                        supplier={suppliers[index]}
+                        locale={locale}
+                        timeZone={timeZone}
+                        cell={cell}
+                        missing={catalog("noCerts")}
+                      />
                     ) : (
                       <CellBody cell={cell} />
                     )}
@@ -182,6 +190,37 @@ function ProductCompareCell({
   );
 }
 
+function CertificateCompareCell({
+  supplier,
+  locale,
+  timeZone,
+  cell,
+  missing,
+}: {
+  supplier: CatalogSupplier;
+  locale: string;
+  timeZone: string;
+  cell: Cell;
+  missing: string;
+}) {
+  return (
+    <>
+      {supplier.certifications.length ? (
+        <ul className="space-y-3">
+          {supplier.certifications.map((item) => (
+            <li key={item.id}>
+              <CertificateFacts item={item} locale={locale} timeZone={timeZone} compact />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>{missing}</p>
+      )}
+      <CellBody cell={cell} />
+    </>
+  );
+}
+
 function CellBody({ cell }: { cell: Cell }) {
   const noteClass =
     cell.noteTone === "caution"
@@ -192,11 +231,6 @@ function CellBody({ cell }: { cell: Cell }) {
 
   return (
     <>
-      {cell.certificate ? (
-        <div className="mb-1">
-          <CertificateStatus mark={cell.certificate} />
-        </div>
-      ) : null}
       {cell.text ? <div className="whitespace-pre-line">{cell.text}</div> : null}
       {cell.status && cell.statusLabel ? (
         <div className="mt-1">
@@ -351,8 +385,7 @@ function buildRows(
         const report = byId.get(supplier.id);
         const counted = (report?.verifiedCertifications ?? 0) > 0;
         return {
-          text: supplier.certifications.map((item) => item.name).join("\n"),
-          certificate: supplierCertificateMark(supplier),
+          text: "",
           best: false,
           note: supplier.certifications.length && !counted ? t("unverifiedCert") : undefined,
           noteTone: supplier.certifications.length && !counted ? "caution" : undefined,

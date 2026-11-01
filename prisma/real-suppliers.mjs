@@ -37,14 +37,14 @@ export const realSuppliers = [
     certs: [
       {
         name: "ISO (заявлено на сайте)",
-        status: "UNVERIFIED",
+        certificateStatus: "UNKNOWN",
         issuer: null,
         sourceUrl: "https://miratorg.ru/about/activity/svinovodstvo_2435/",
         notes: `Страница свиноводства сообщает, что площадки сертифицированы по ISO. ${unverified}`,
       },
       {
         name: "Сертификат или декларация соответствия (заявлено на сайте)",
-        status: "UNVERIFIED",
+        certificateStatus: "UNKNOWN",
         issuer: null,
         sourceUrl: "https://miratorg.ru/about/activity/svinovodstvo_2435/",
         notes: `Страница сообщает, что на каждый продукт есть сертификат или декларация соответствия. ${unverified}`,
@@ -299,7 +299,7 @@ export const realSuppliers = [
     certs: [
       {
         name: "Halal, World Halal Trust (заявлено на сайте)",
-        status: "UNVERIFIED",
+        certificateStatus: "UNKNOWN",
         issuer: "World Halal Trust",
         sourceUrl: "https://ochakovo.ru/eng/",
         notes: `Английская страница сообщает о сертификации продукции Halal организацией World Halal Trust. ${unverified}`,

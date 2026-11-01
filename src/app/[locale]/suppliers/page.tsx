@@ -58,7 +58,7 @@ async function DiscoveryResults({
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
   }
 
-  const { result, savedIds, tracking, today, observedAt, timeZone, comparing } = loaded;
+  const { result, savedIds, observedAt, timeZone, comparing } = loaded;
 
   return (
       <div className="space-y-4">
@@ -113,11 +113,8 @@ async function DiscoveryResults({
                 locale={locale}
                 saved={savedIds.has(supplier.id)}
                 comparing={comparing.has(supplier.slug)}
-                showScore={result.showScore}
                 report={report}
                 profileHref={profileHref(supplier.slug, query)}
-                tracking={tracking.get(supplier.id) ?? null}
-                today={today}
                 observedAt={observedAt}
                 timeZone={timeZone}
                 context={{
@@ -150,8 +147,6 @@ async function loadDiscovery(query: ReturnType<typeof parseDiscoveryQuery>) {
     return {
       result,
       savedIds: new Set(workspace.map((entry) => entry.supplierId)),
-      tracking: new Map(workspace.map((entry) => [entry.supplierId, entry])),
-      today: clock.today,
       observedAt: clock.observedAt,
       timeZone: clock.timeZone,
       comparing: new Set(parseCompareSlugs(jar.get(compareCookieName)?.value)),

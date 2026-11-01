@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isCertificateFilter, type CertificateFilter } from "@/lib/certificate-status";
 import { isContactStatus, type ContactStatus } from "@/lib/contact-tracking";
 import { isFreshnessStatus, type FreshnessStatus } from "@/lib/freshness";
 
@@ -40,6 +41,7 @@ export type DiscoveryQuery = {
   region: string;
   type: SupplierTypeFilter | "";
   certified: boolean;
+  certificate: CertificateFilter | "";
   contact: ContactStatus | "";
   freshness: FreshnessStatus | "";
   maxPrice: number | null;
@@ -56,6 +58,7 @@ const inputSchema = z.object({
   region: z.string().trim().max(160).optional().default(""),
   type: z.string().trim().max(40).optional().default(""),
   certified: z.string().trim().max(8).optional().default(""),
+  certificate: z.string().trim().max(20).optional().default(""),
   contact: z.string().trim().max(40).optional().default(""),
   freshness: z.string().trim().max(20).optional().default(""),
   maxPrice: z.string().trim().max(20).optional().default(""),
@@ -99,6 +102,7 @@ export function parseDiscoveryQuery(
     region: first(raw.region),
     type: first(raw.type),
     certified: first(raw.certified),
+    certificate: first(raw.certificate),
     contact: first(raw.contact),
     freshness: first(raw.freshness),
     maxPrice: first(raw.maxPrice),
@@ -117,6 +121,7 @@ export function parseDiscoveryQuery(
     region: parsed.region,
     type: isSupplierType(parsed.type) ? parsed.type : "",
     certified: parsed.certified === "1",
+    certificate: isCertificateFilter(parsed.certificate) ? parsed.certificate : "",
     contact: isContactStatus(parsed.contact) ? parsed.contact : "",
     freshness: isFreshnessStatus(parsed.freshness) ? parsed.freshness : "",
     maxPrice: numberOrNull(parsed.maxPrice),
@@ -140,6 +145,7 @@ export function toSearchParams(query: DiscoveryQuery, page = query.page) {
   if (query.region) params.set("region", query.region);
   if (query.type) params.set("type", query.type);
   if (query.certified) params.set("certified", "1");
+  if (query.certificate) params.set("certificate", query.certificate);
   if (query.contact) params.set("contact", query.contact);
   if (query.freshness) params.set("freshness", query.freshness);
   if (query.maxPrice != null) params.set("maxPrice", String(query.maxPrice));
@@ -157,6 +163,7 @@ export function hasRankingContext(query: DiscoveryQuery) {
       query.city ||
       query.region ||
       query.certified ||
+      query.certificate ||
       query.freshness ||
       query.maxPrice != null ||
       query.maxMoq != null,

@@ -291,7 +291,7 @@ function CompareControl({
   }
 
   return (
-    <form action={action} className={showIcon ? "min-w-0" : undefined}>
+    <form action={action} className={showIcon ? "min-w-0 w-full" : undefined}>
       <input type="hidden" name="slug" value={slug} />
       {context ? (
         <>

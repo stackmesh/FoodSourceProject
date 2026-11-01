@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CertificationStatus, SupplierType } from "../src/generated/prisma/client";
+import type { CertificateStatus, SupplierType } from "../src/generated/prisma/client";
 
 const categories = [
   { slug: "meat", nameRu: "Мясо и птица", nameEn: "Meat and poultry", sortOrder: 1 },
@@ -22,6 +22,12 @@ type ProductSeed = {
   image: string;
 };
 
+type CertSeed = {
+  name: string;
+  certificateStatus: CertificateStatus;
+  expiresInDays: number | null;
+};
+
 type SupplierSeed = {
   slug: string;
   name: string;
@@ -29,7 +35,7 @@ type SupplierSeed = {
   city: string;
   region: string;
   products: ProductSeed[];
-  certs: { name: string; status: CertificationStatus }[];
+  certs: CertSeed[];
 };
 
 const delivery = {
@@ -50,7 +56,7 @@ const suppliers: SupplierSeed[] = [
       { category: "meat", name: "Тушка цыплёнка-бройлера", price: 246, moq: 100, unit: "кг", delivery: delivery.region, image: "/images/products/broiler-chicken.jpg" },
       { category: "meat", name: "Филе грудки", price: 390, moq: 50, unit: "кг", delivery: delivery.region, image: "/images/products/chicken-breast-fillet.jpg" },
     ],
-    certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: ХАССП", certificateStatus: "VALID", expiresInDays: 120 }],
   },
   {
     slug: "stolichny-myasnoy-dvor",
@@ -62,7 +68,7 @@ const suppliers: SupplierSeed[] = [
       { category: "meat", name: "Говядина лопатка", price: 690, moq: 80, unit: "кг", delivery: delivery.city, image: "/images/products/beef-shoulder.jpg" },
       { category: "meat", name: "Свинина окорок", price: 420, moq: 80, unit: "кг", delivery: delivery.city, image: "/images/products/pork-ham.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "EXPIRING_SOON", expiresInDays: 12 }],
   },
   {
     slug: "donskaya-govyadina",
@@ -86,7 +92,7 @@ const suppliers: SupplierSeed[] = [
       { category: "meat", name: "Колбаса варёная", price: 360, moq: 40, unit: "кг", delivery: delivery.region, image: "/images/products/cooked-sausage.jpg" },
       { category: "meat", name: "Сосиски молочные", price: 310, moq: 30, unit: "кг", delivery: delivery.region, image: "/images/products/milk-sausages.jpg" },
     ],
-    certs: [{ name: "Демо: ХАССП", status: "EXPIRED" }],
+    certs: [{ name: "Демо: ХАССП", certificateStatus: "EXPIRED", expiresInDays: -40 }],
   },
   {
     slug: "baltiyskiy-ulov",
@@ -98,7 +104,7 @@ const suppliers: SupplierSeed[] = [
       { category: "fish", name: "Лосось слабосолёный", price: 1480, moq: 20, unit: "кг", delivery: delivery.federal, image: "/images/products/salted-salmon.jpg" },
       { category: "fish", name: "Креветка 16/20", price: 980, moq: 10, unit: "кг", delivery: delivery.federal, image: "/images/products/shrimp.jpg" },
     ],
-    certs: [{ name: "Демо: ветеринарное свидетельство", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: ветеринарное свидетельство", certificateStatus: "UNKNOWN", expiresInDays: null }],
   },
   {
     slug: "chernomorskaya-ryba",
@@ -122,7 +128,7 @@ const suppliers: SupplierSeed[] = [
       { category: "fish", name: "Минтай тушка", price: 210, moq: 100, unit: "кг", delivery: delivery.region, image: "/images/products/pollock-whole.jpg" },
       { category: "frozen", name: "Рыбные котлеты", price: 280, moq: 50, unit: "кг", delivery: delivery.pickup, image: "/images/products/fish-cutlets.jpg" },
     ],
-    certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: ХАССП", certificateStatus: "SUSPENDED", expiresInDays: 180 }],
   },
   {
     slug: "kubanskie-ovoshchi",
@@ -134,7 +140,7 @@ const suppliers: SupplierSeed[] = [
       { category: "produce", name: "Томаты розовые", price: 165, moq: 200, unit: "кг", delivery: delivery.federal, image: "/images/products/pink-tomatoes.jpg" },
       { category: "produce", name: "Огурцы гладкие", price: 140, moq: 200, unit: "кг", delivery: delivery.federal, image: "/images/products/smooth-cucumbers.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "VALID", expiresInDays: 200 }],
   },
   {
     slug: "moskovskaya-teplitsa",
@@ -158,7 +164,7 @@ const suppliers: SupplierSeed[] = [
       { category: "produce", name: "Яблоки сезонные", price: 95, moq: 300, unit: "кг", delivery: delivery.region, image: "/images/products/seasonal-apples.jpg" },
       { category: "produce", name: "Картофель мытый", price: 42, moq: 500, unit: "кг", delivery: delivery.region, image: "/images/products/washed-potatoes.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "EXPIRING_SOON", expiresInDays: 20 }],
   },
   {
     slug: "tatarstanskie-yagody",
@@ -182,7 +188,7 @@ const suppliers: SupplierSeed[] = [
       { category: "dairy", name: "Молоко 3,2%", price: 78, moq: 100, unit: "л", delivery: delivery.region, image: "/images/products/milk.jpg" },
       { category: "dairy", name: "Сметана 20%", price: 210, moq: 40, unit: "кг", delivery: delivery.region, image: "/images/products/sour-cream.jpg" },
     ],
-    certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: ХАССП", certificateStatus: "UNKNOWN", expiresInDays: null }],
   },
   {
     slug: "sibirskoe-moloko",
@@ -194,7 +200,7 @@ const suppliers: SupplierSeed[] = [
       { category: "dairy", name: "Творог 5%", price: 260, moq: 30, unit: "кг", delivery: delivery.region, image: "/images/products/cottage-cheese.jpg" },
       { category: "dairy", name: "Сыр полутвёрдый", price: 620, moq: 15, unit: "кг", delivery: delivery.region, image: "/images/products/semi-hard-cheese.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "EXPIRED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "EXPIRED", expiresInDays: -15 }],
   },
   {
     slug: "kazanskiy-molochnyy-ceh",
@@ -219,7 +225,7 @@ const suppliers: SupplierSeed[] = [
       { category: "grocery", name: "Мука пшеничная высший сорт", price: 48, moq: 400, unit: "кг", delivery: delivery.federal, image: "/images/products/wheat-flour.jpg" },
       { category: "grocery", name: "Масло подсолнечное", price: 130, moq: 100, unit: "л", delivery: delivery.federal, image: "/images/products/sunflower-oil.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "REVOKED", expiresInDays: 90 }],
   },
   {
     slug: "severnaya-zamorozka",
@@ -231,7 +237,7 @@ const suppliers: SupplierSeed[] = [
       { category: "frozen", name: "Овощная смесь", price: 145, moq: 80, unit: "кг", delivery: delivery.federal, image: "/images/products/mixed-vegetables.jpg" },
       { category: "frozen", name: "Картофель фри", price: 160, moq: 60, unit: "кг", delivery: delivery.federal, image: "/images/products/french-fries.jpg" },
     ],
-    certs: [{ name: "Демо: ХАССП", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: ХАССП", certificateStatus: "VALID", expiresInDays: 60 }],
   },
   {
     slug: "stolichnye-napitki",
@@ -243,7 +249,7 @@ const suppliers: SupplierSeed[] = [
       { category: "drinks", name: "Вода негазированная 19 л", price: 280, moq: 20, unit: "шт", delivery: delivery.city, image: "/images/products/still-water.jpg" },
       { category: "drinks", name: "Сок яблочный 1 л", price: 95, moq: 48, unit: "шт", delivery: delivery.city, image: "/images/products/apple-juice.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "UNKNOWN", expiresInDays: null }],
   },
   {
     slug: "upakovka-povolzhyya",
@@ -255,7 +261,7 @@ const suppliers: SupplierSeed[] = [
       { category: "packaging", name: "Контейнер ПЭТ 500 мл", price: 6.5, moq: 1000, unit: "шт", delivery: delivery.federal, image: "/images/products/pet-container.jpg" },
       { category: "packaging", name: "Пакет бумажный", price: 9, moq: 500, unit: "шт", delivery: delivery.federal, image: "/images/products/paper-bag.jpg" },
     ],
-    certs: [{ name: "Демо: декларация о соответствии", status: "UNVERIFIED" }],
+    certs: [{ name: "Демо: декларация о соответствии", certificateStatus: "EXPIRING_SOON", expiresInDays: 5 }],
   },
 ];
 

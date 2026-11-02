@@ -16,8 +16,16 @@ function createPrismaClient() {
     );
   }
 
+  const caPath = path.join(
+    process.cwd(),
+    'certs',
+    'ca.pem'
+  );
+
+  if (!fs.existsSync(caPath)) {
+    throw new Error(`CA certificate not found: ${caPath}`);
+  }
   // const ca = process.env.PG_SSL_CA?.replace(/\\n/g, "\n");
-  const caPath = path.join(process.cwd(), "certs", "ca.pem");
   // const adapter = new PrismaPg({ connectionString });
   const adapter = new PrismaPg({connectionString,
   ssl:{

@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
 import { SupplierLogo } from "@/components/catalog/catalog-media";
 import { ErrorState, PanelSkeleton } from "@/components/catalog/chrome";
+import { ProductTypeLinks } from "@/components/catalog/product-type-links";
 import { RefreshDashboard } from "@/components/catalog/refresh-dashboard";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
@@ -96,6 +97,17 @@ async function DashboardContent({ locale }: { locale: string }) {
           </section>
         ))}
       </div>
+      <section>
+        <h2 className="text-base font-semibold">{t("productTypes")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t("productTypesText")}</p>
+        <div className="mt-4">
+          <ProductTypeLinks
+            label={(type) => catalog(`productTypes.${type}`)}
+            counts={data.productTypeCounts}
+            countText={(count) => t("supplierCount", { count })}
+          />
+        </div>
+      </section>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">

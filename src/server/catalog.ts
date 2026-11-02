@@ -7,6 +7,7 @@ import {
   hasRankingContext,
   type DiscoveryQuery,
 } from "@/lib/discovery-query";
+import { isProductType, productTypes, type ProductType } from "@/lib/product-type";
 import { getPrisma } from "@/lib/prisma";
 import { matchSuppliers, type MatchContext, type MatchReport } from "@/server/matching";
 import { discoveryPageSize, queryMatchCohort, querySupplierIds, querySupplierPage } from "@/server/supplier-search";
@@ -347,7 +348,7 @@ async function loadSuppliersByIds(ids: string[], now: Date) {
 export async function getDashboard(now: Date) {
   try {
     const prisma = getPrisma();
-    const [supplierCount, categoryCount, savedCount, regions, recentRows, popular] = await Promise.all([
+    const [supplierCount, categoryCount, savedCount, regions, recentRows, popular, productTypeCounts] = await Promise.all([
       prisma.supplier.count({ where: { isActive: true } }),
       prisma.category.count(),
       prisma.shortlist.count({ where: { workspaceKey: demoWorkspaceKey } }),
@@ -363,6 +364,7 @@ export async function getDashboard(now: Date) {
         take: 5,
       }),
       categoryCounts(),
+      productTypeSupplierCounts(),
     ]);
 
     return {
@@ -372,11 +374,37 @@ export async function getDashboard(now: Date) {
       savedCount,
       recent: recentRows.map((row) => mapSupplier(row as Parameters<typeof mapSupplier>[0], now)),
       popular,
+      productTypeCounts,
     };
   } catch (error) {
     console.error(error);
     throw new DataError();
   }
+}
+
+export async function getProductTypeCounts() {
+  try {
+    return await productTypeSupplierCounts();
+  } catch (error) {
+    console.error(error);
+    throw new DataError();
+  }
+}
+
+async function productTypeSupplierCounts() {
+  const rows = await getPrisma().$queryRaw<Array<{ productType: string; count: number }>>`
+    SELECT p."productType"::text AS "productType", COUNT(DISTINCT p."supplierId")::int AS count
+    FROM "SupplierProduct" p
+    JOIN "Supplier" s ON s."id" = p."supplierId" AND s."isActive" = true
+    GROUP BY p."productType"
+  `;
+  const counts = Object.fromEntries(productTypes.map((type) => [type, 0])) as Record<ProductType, number>;
+
+  for (const row of rows) {
+    if (isProductType(row.productType)) counts[row.productType] = row.count;
+  }
+
+  return counts;
 }
 
 export async function getCategories() {

@@ -17,8 +17,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ErrorState } from "@/components/catalog/chrome";
+import { ProductTypeLinks } from "@/components/catalog/product-type-links";
 import { Link } from "@/i18n/navigation";
-import { getCategories } from "@/server/catalog";
+import { getCategories, getProductTypeCounts } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 import { HeroSearch } from "./hero-search";
 
@@ -40,7 +41,8 @@ type HomeCategory = { slug: string; nameRu: string; nameEn: string; count: numbe
 export async function HomePage({ locale }: { locale: string }) {
   const t = await getTranslations("Landing");
   const catalog = await getTranslations("CategoriesPage");
-  const loaded = await loadCategories();
+  const productCatalog = await getTranslations("Catalog");
+  const [loaded, productTypeCounts] = await Promise.all([loadCategories(), loadProductTypes()]);
   const categories = loaded ? orderedCategories(loaded) : null;
 
   return (
@@ -81,6 +83,20 @@ export async function HomePage({ locale }: { locale: string }) {
           <Feature icon={Star} title={t("saveTitle")} text={t("saveText")} />
         </div>
       </section>
+
+      {productTypeCounts ? (
+        <section className="mt-10">
+          <h2 className="text-2xl font-semibold tracking-tight">{t("productTypesTitle")}</h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{t("productTypesText")}</p>
+          <div className="mt-5">
+            <ProductTypeLinks
+              label={(type) => productCatalog(`productTypes.${type}`)}
+              counts={productTypeCounts}
+              countText={(count) => catalog("count", { count })}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-10">
         <div>
@@ -155,6 +171,15 @@ function orderedCategories(categories: HomeCategory[]) {
 async function loadCategories() {
   try {
     return await getCategories();
+  } catch (error) {
+    if (!(error instanceof DataError)) throw error;
+    return null;
+  }
+}
+
+async function loadProductTypes() {
+  try {
+    return await getProductTypeCounts();
   } catch (error) {
     if (!(error instanceof DataError)) throw error;
     return null;

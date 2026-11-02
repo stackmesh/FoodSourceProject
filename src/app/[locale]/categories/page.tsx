@@ -14,10 +14,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ErrorState, PageIntro, PanelSkeleton } from "@/components/catalog/chrome";
+import { ProductTypeLinks } from "@/components/catalog/product-type-links";
 import { Link } from "@/i18n/navigation";
 import { assertLocale } from "@/i18n/locale";
-import { productTypes } from "@/lib/product-type";
-import { getCategories } from "@/server/catalog";
+import { getCategories, getProductTypeCounts } from "@/server/catalog";
 import { DataError } from "@/server/catalog-types";
 
 const categoryVisuals: Record<string, { icon: LucideIcon; tone: string }> = {
@@ -63,7 +63,7 @@ export default async function CategoriesPage({
 async function CategoryGrid({ locale }: { locale: string }) {
   const t = await getTranslations("CategoriesPage");
   const catalog = await getTranslations("Catalog");
-  const categories = await loadCategories();
+  const [categories, productTypeCounts] = await Promise.all([loadCategories(), loadProductTypes()]);
 
   if (!categories) {
     return <ErrorState title={t("errorTitle")} text={t("errorText")} action={t("retry")} />;
@@ -74,23 +74,24 @@ async function CategoryGrid({ locale }: { locale: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold">{t("productTypesTitle")}</h2>
-        <ul className="mt-2 flex flex-wrap gap-2">
-          {productTypes.map((type) => (
-            <li key={type}>
-              <Link
-                href={`/suppliers?productType=${type}`}
-                className="inline-flex rounded-full border bg-card px-3 py-1 text-sm hover:border-primary/40"
-              >
-                {catalog(`productTypes.${type}`)}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-10">
+      {productTypeCounts ? (
+        <section>
+          <h2 className="text-xl font-semibold tracking-tight">{t("productTypesTitle")}</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t("productTypesText")}</p>
+          <div className="mt-5">
+            <ProductTypeLinks
+              label={(type) => catalog(`productTypes.${type}`)}
+              counts={productTypeCounts}
+              countText={(count) => t("count", { count })}
+            />
+          </div>
+        </section>
+      ) : null}
+      <section className={productTypeCounts ? "border-t pt-10" : undefined}>
+        <h2 className="text-xl font-semibold tracking-tight">{t("categoriesSection")}</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t("categoriesText")}</p>
+      <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {categories.map((category) => {
           const visual = categoryVisuals[category.slug] ?? { icon: Package, tone: "bg-muted text-muted-foreground" };
           const Icon = visual.icon;
@@ -117,7 +118,7 @@ async function CategoryGrid({ locale }: { locale: string }) {
           );
         })}
       </ul>
-      <div className="flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
             <ShoppingBasket className="size-5" />
@@ -135,6 +136,7 @@ async function CategoryGrid({ locale }: { locale: string }) {
           <ChevronRight className="size-4" />
         </Link>
       </div>
+      </section>
     </div>
   );
 }
@@ -142,6 +144,15 @@ async function CategoryGrid({ locale }: { locale: string }) {
 async function loadCategories() {
   try {
     return await getCategories();
+  } catch (error) {
+    if (!(error instanceof DataError)) throw error;
+    return null;
+  }
+}
+
+async function loadProductTypes() {
+  try {
+    return await getProductTypeCounts();
   } catch (error) {
     if (!(error instanceof DataError)) throw error;
     return null;

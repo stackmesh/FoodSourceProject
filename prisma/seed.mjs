@@ -13,6 +13,32 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set.");
 }
 
+const queryTimeoutMs = 15_000;
+const lockTimeoutMs = 10_000;
+
+function stamp() {
+  return new Date().toISOString();
+}
+
+function log(message) {
+  console.log(`${stamp()} ${message}`);
+}
+
+function describeError(error) {
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = raw.replace(/postgres(?:ql)?:\/\/\S+/gi, "[redacted]");
+  const code = error && typeof error === "object" && "code" in error && error.code ? String(error.code) : "none";
+  return { message, code };
+}
+
+let currentOperation = "startup";
+
+function reportFailure(operation, error) {
+  const { message, code } = describeError(error);
+  console.error(`${stamp()} failed ${operation}: ${message} (PostgreSQL code ${code})`);
+}
+
+log("start load seed modules");
 const typeSource = readFileSync(new URL("../src/lib/product-type.ts", import.meta.url), "utf8");
 const typeCompiled = ts.transpileModule(typeSource, {
   compilerOptions: {
@@ -39,6 +65,7 @@ writeFileSync(new URL("../.cache/product-type.cjs", import.meta.url), typeCompil
 const require = createRequire(import.meta.url);
 const { categories, suppliers } = require("../.cache/demo-data.cjs");
 const { productTypeForName } = require("../.cache/product-type.cjs");
+log(`done load seed modules (${categories.length} categories, ${suppliers.length} demonstration suppliers, ${realSuppliers.length} real suppliers)`);
 
 function idFor(key) {
   const hex = createHash("sha256").update(key).digest("hex");
@@ -48,15 +75,46 @@ function idFor(key) {
 const demoDescription =
   "Демонстрационная карточка. Название, цены, минимальный заказ, контакты и сертификаты вымышлены и не являются коммерческим предложением или проверенным источником.";
 
-const client = new pg.Client({ connectionString });
-await client.connect();
+const client = new pg.Client({
+  connectionString,
+  statement_timeout: queryTimeoutMs,
+  lock_timeout: lockTimeoutMs,
+  query_timeout: queryTimeoutMs,
+});
+
+async function step(operation, sql, params) {
+  currentOperation = operation;
+  log(`start ${operation}`);
+  const started = Date.now();
+  try {
+    const result = await client.query(sql, params);
+    log(`done ${operation} (${Date.now() - started}ms)`);
+    return result;
+  } catch (error) {
+    reportFailure(operation, error);
+    if (error && typeof error === "object") error.seedLogged = true;
+    throw error;
+  }
+}
+
+let transactionOpen = false;
 
 try {
-  await client.query("BEGIN");
+  currentOperation = "PostgreSQL connection";
+  log("start PostgreSQL connection");
+  const connectedAt = Date.now();
+  await client.connect();
+  log(`done PostgreSQL connection (${Date.now() - connectedAt}ms)`);
+
+  await step("set statement_timeout", "SET statement_timeout = 15000");
+  await step("set lock_timeout", "SET lock_timeout = 10000");
+  await step("BEGIN transaction", "BEGIN");
+  transactionOpen = true;
 
   const categoryIds = new Map();
   for (const category of categories) {
-    const inserted = await client.query(
+    const inserted = await step(
+      `category upsert: ${category.slug}`,
       `INSERT INTO "Category" ("id", "nameRu", "nameEn", "slug", "sortOrder", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT ("slug") DO UPDATE SET
@@ -69,6 +127,9 @@ try {
     );
     categoryIds.set(category.slug, inserted.rows[0].id);
   }
+
+  const supplierTotal = suppliers.length + realSuppliers.length;
+  let supplierNumber = 0;
 
   for (const [index, supplier] of suppliers.entries()) {
     const createdAt = new Date(Date.UTC(2026, 8, 1) + index * 36 * 60 * 60 * 1000);
@@ -122,7 +183,7 @@ try {
           checkedAt: createdAt,
         },
       ],
-    }, categoryIds);
+    }, categoryIds, ++supplierNumber, supplierTotal);
   }
 
   for (const supplier of realSuppliers) {
@@ -161,26 +222,46 @@ try {
         isPrimary: source.isPrimary,
         checkedAt: supplier.checkedAt,
       })),
-    }, categoryIds);
+    }, categoryIds, ++supplierNumber, supplierTotal);
   }
 
   const demoSlugs = suppliers.map((supplier) => supplier.slug);
-  await client.query(
+  await step(
+    "demo supplier cleanup",
     `DELETE FROM "Supplier" WHERE "dataType" = 'DEMO' AND NOT ("slug" = ANY($1::text[]))`,
     [demoSlugs],
   );
 
-  await client.query("COMMIT");
-  console.log(`Seeded ${realSuppliers.length} real and ${suppliers.length} demonstration suppliers.`);
+  await step("COMMIT transaction", "COMMIT");
+  transactionOpen = false;
+  log(`Seeded ${realSuppliers.length} real and ${suppliers.length} demonstration suppliers.`);
 } catch (error) {
-  await client.query("ROLLBACK");
-  throw error;
+  if (!error || typeof error !== "object" || !error.seedLogged) reportFailure(currentOperation, error);
+  if (transactionOpen) {
+    try {
+      log("start ROLLBACK transaction");
+      await client.query("ROLLBACK");
+      log("done ROLLBACK transaction");
+    } catch (rollbackError) {
+      reportFailure("ROLLBACK transaction", rollbackError);
+    }
+  }
+  process.exitCode = 1;
 } finally {
-  await client.end();
+  log("start database connection closing");
+  try {
+    await client.end();
+    log("done database connection closing");
+  } catch (error) {
+    reportFailure("database connection closing", error);
+    process.exitCode = 1;
+  }
 }
 
-async function upsertSupplier(db, supplier, categoryIds) {
-  const saved = await db.query(
+async function upsertSupplier(db, supplier, categoryIds, supplierNumber, supplierTotal) {
+  log(`Processing supplier ${supplierNumber}/${supplierTotal}: ${supplier.slug}`);
+  const saved = await step(
+    `supplier upsert: ${supplier.slug}`,
     `INSERT INTO "Supplier"
       ("id", "name", "slug", "description", "supplierType", "city", "region", "country", "address", "website", "sourceUrl", "dataType", "verificationStatus", "lastVerifiedAt", "logoUrl", "isActive", "createdAt", "updatedAt")
      VALUES ($1,$2,$3,$4,$5,$6,$7,'Россия',$8,$9,$10,$11,$12,$13,$14,true,$15,NOW())
@@ -221,15 +302,16 @@ async function upsertSupplier(db, supplier, categoryIds) {
   );
   const supplierId = saved.rows[0].id;
 
-  await db.query(`DELETE FROM "SupplierProduct" WHERE "supplierId" = $1`, [supplierId]);
-  await db.query(`DELETE FROM "SupplierContact" WHERE "supplierId" = $1`, [supplierId]);
-  await db.query(`DELETE FROM "Certification" WHERE "supplierId" = $1`, [supplierId]);
-  await db.query(`DELETE FROM "SupplierSource" WHERE "supplierId" = $1`, [supplierId]);
+  await step(`supplier product deletion: ${supplier.slug}`, `DELETE FROM "SupplierProduct" WHERE "supplierId" = $1`, [supplierId]);
+  await step(`supplier contact deletion: ${supplier.slug}`, `DELETE FROM "SupplierContact" WHERE "supplierId" = $1`, [supplierId]);
+  await step(`certification deletion: ${supplier.slug}`, `DELETE FROM "Certification" WHERE "supplierId" = $1`, [supplierId]);
+  await step(`supplier source deletion: ${supplier.slug}`, `DELETE FROM "SupplierSource" WHERE "supplierId" = $1`, [supplierId]);
 
   for (const product of supplier.products) {
     const categoryId = categoryIds.get(product.category);
     if (!categoryId) throw new Error(`Unknown category ${product.category} for ${supplier.slug}`);
-    await db.query(
+    await step(
+      `supplier product insertion: ${supplier.slug} / ${product.name}`,
       `INSERT INTO "SupplierProduct"
         ("id", "supplierId", "categoryId", "name", "description", "estimatedPrice", "currency", "minimumOrderQuantity", "unit", "deliveryNotes", "imageUrl", "isAvailable", "productType", "dataType", "priceUpdatedAt", "updatedAt")
        VALUES ($1,$2,$3,$4,$5,$6,'RUB',$7,$8,$9,$10,$11,$12,$13,$14,NOW())`,
@@ -253,7 +335,8 @@ async function upsertSupplier(db, supplier, categoryIds) {
   }
 
   for (const [type, label, value, sourceUrl] of supplier.contacts) {
-    await db.query(
+    await step(
+      `supplier contact insertion: ${supplier.slug} / ${type}`,
       `INSERT INTO "SupplierContact" ("id", "supplierId", "type", "label", "value", "isPublic", "sourceUrl")
        VALUES ($1,$2,$3,$4,$5,true,$6)`,
       [idFor(`contact:${supplier.slug}:${type}:${value}`), supplierId, type, label, value, sourceUrl],
@@ -263,7 +346,8 @@ async function upsertSupplier(db, supplier, categoryIds) {
   for (const cert of supplier.certs) {
     const expiresAt =
       typeof cert.expiresInDays === "number" ? new Date(Date.now() + cert.expiresInDays * 86_400_000) : null;
-    await db.query(
+    await step(
+      `certification insertion: ${supplier.slug} / ${cert.name}`,
       `INSERT INTO "Certification"
         ("id", "supplierId", "name", "certificateStatus", "verificationStatus", "issuer", "verificationNotes", "sourceUrl", "expiresAt", "isDemo", "updatedAt")
        VALUES ($1,$2,$3,$4,'UNVERIFIED',$5,$6,$7,$8,$9,NOW())`,
@@ -282,7 +366,8 @@ async function upsertSupplier(db, supplier, categoryIds) {
   }
 
   for (const source of supplier.sources) {
-    await db.query(
+    await step(
+      `supplier source insertion: ${supplier.slug} / ${source.type}`,
       `INSERT INTO "SupplierSource"
         ("id", "supplierId", "sourceType", "url", "title", "evidence", "isPrimary", "checkedAt")
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,

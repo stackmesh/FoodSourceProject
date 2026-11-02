@@ -4,110 +4,106 @@ FoodSource does not expose a versioned REST or RPC API. The browser posts HTML f
 
 All workspace writes use the server-side constant `demoWorkspaceKey` (`demo-workspace`). Clients cannot choose a workspace.
 
+## Search query string
+
+`GET /suppliers` and the supplier profile read the same parser, `parseDiscoveryQuery` in `src/lib/discovery-query.ts`. Unknown values are dropped. Empty filters and the default sort `name` are omitted by `toSearchParams`. Page 1 is omitted.
+
+| Parameter | Meaning |
+| --- | --- |
+| `q` | Text, max 200 characters. |
+| `scope` | `all` (default), `name`, `product`, or `place`. |
+| `category` | Category slug. |
+| `city`, `region` | Exact strings. |
+| `type` | Supplier type: `MANUFACTURER`, `DISTRIBUTOR`, `FARM`, `IMPORTER`, `PACKAGING`, `WHOLESALER`, `OTHER`. The filter UI lists those except `OTHER`. |
+| `productType` | `INGREDIENTS`, `FINISHED_PRODUCTS`, `PACKAGING`, `OTHER_FOOD_RELATED_GOODS`. |
+| `certificate` | `verified`, `valid`, `expiring`, `expired`, or `unverified`. |
+| `certified` | `1`. Real suppliers whose effective certificate status is not expired, suspended, or revoked. This does not require `VERIFIED`. |
+| `contact` | A `ContactStatus`. Missing shortlist counts as `NOT_CONTACTED`. |
+| `freshness` | `fresh` (0–30 days), `aging` (31–90), `stale` (older), `unknown` (null, invalid, or future `updatedAt`). |
+| `maxPrice`, `maxMoq` | Finite numbers ≥ 0. A comma is accepted as a decimal separator. |
+| `sort` | `match`, `name`, `name-desc`, `price`, `price-desc`, `moq`, `moq-desc`, `updated`, `created`, `complete`, `relevance`. |
+| `page` | Integer from 1 to 10000. Page size is 9. |
+
+`verified` certificate filter requires `verificationStatus = VERIFIED` and `isDemo = false`. Validity filters use the effective status SQL, which keeps `SUSPENDED` and `REVOKED` and otherwise follows `expiresAt`. The expiring-soon window is 30 days (`certificateThresholds.expiringSoonDays`).
+
+Product type, supplier type, and contact status do not by themselves enable the match-score breakdown. See [matching-score.md](matching-score.md).
+
 ## Route Handler
 
-### `GET /[locale]/compare/export`
+### `GET /compare/export`
 
-File: `src/app/[locale]/compare/export/route.ts`.
+File: `src/app/[locale]/compare/export/route.ts`. The locale prefix is never sent, so the public path is `/compare/export`. `assertLocale` accepts `ru` only.
 
-- `locale` must be `ru` (`assertLocale`). Other locales call `notFound()`.
 - Reads cookies `fs-compare` and `fs-match`.
-- `400` if no comparison slugs resolve to active suppliers.
-- `500` if catalog loading throws `DataError`.
+- `400` when the cookie has no slugs, or none of them resolve to active suppliers.
+- `500` when catalog loading throws `DataError`.
 - Success: `text/csv; charset=utf-8`, `Cache-Control: no-store`.
-- Columns are listed in `comparisonExportColumns` (`src/lib/comparison-export.ts`). Internal note text is not exported. Public catalog email and phone, workspace contact status, and workspace contact-person name are exported.
+- Columns are `comparisonExportColumns` in `src/lib/comparison-export.ts`: name, supplier type, categories, products, product types, place, website, workspace contact-person name, public email and phone, price, currency, unit, MOQ, certifications, delivery text, score, contact status, freshness, updated time, source URL.
+- Internal note text is not exported.
 
 ## Server Actions
 
-File: `src/server/actions.ts`. Each action that needs an identifier accepts `supplierId` (UUID) or `slug` (lowercase hyphenated). Invalid input returns `{ ok: false, error: "invalid" }` unless noted.
+File: `src/server/actions.ts`. These are the actions the UI imports.
 
 ### `toggleFavorite(previous, formData)`
 
-- Input: `supplierId`.
-- Creates a shortlist row or, if one exists, deletes that workspace’s activities, people, notes, and shortlist.
+- Input: `supplierId` (UUID).
+- Creates a shortlist, or deletes that workspace’s notes and the shortlist.
 - Result: `{ ok: true, saved }` or `{ ok: false, error: "invalid" | "missing" }`.
 
 ### `addToComparison(previous, formData)`
 
-- Input: `slug`. Optional `rememberContext=1` plus search fields stores `fs-match`.
-- Cookie `fs-compare` is limited to 3 slugs.
+- Input: `slug`. Optional `rememberContext=1` plus search fields stores `fs-match` (`httpOnly`).
+- Cookie `fs-compare` is `httpOnly: false`, limited to 3 slugs, `sameSite: lax`, path `/`, max age 180 days.
 - Result: `{ ok: true, comparing }` or `{ ok: false, error: "full" | "invalid" | "missing" }`.
 
 ### `removeFromComparison(formData)`
 
-- Input: `slug`. Invalid slug is ignored.
+- Input: `slug`. An invalid slug is ignored. The function returns `void`.
 
 ### `saveNote(previous, formData)`
 
-- Input: `supplierId`, optional `noteId`, `content` (trimmed, 1–2000 characters).
-- Create calls `createOwnedNote` (also writes `NOTE_ADDED`). Update calls `updateOwnedNote` (no extra history row).
+- Input: `supplierId`, optional `noteId`, `content` trimmed to 1–2000 characters.
+- Create upserts a shortlist and inserts `SupplierNote` in one transaction.
+- Update requires the note id, `demo-workspace`, and the same supplier.
 - Result: `{ ok: true }` or `{ ok: false, error: "invalid" | "empty" | "missing" }`.
-- Update is scoped by note id, workspace, and supplier. A note from another workspace is not updated.
 
 ### `deleteNote(formData)`
 
-- Input: `noteId` and `supplierId`. Both must be valid UUIDs or the action returns.
-- Deletes only a `demo-workspace` note for that supplier. History rows stay.
+- Input: `noteId` (UUID). A missing or invalid id returns without an error object.
+- Deletes a `demo-workspace` note with that id. The action does not also require `supplierId`.
 
 ### `updateContactStatus(previous, formData)`
 
-- Input: `supplierId`, `status` (`ContactStatus` enum).
-- Optional `details=1` also accepts `contactPerson`, `lastContactOn`, `nextFollowUpOn`, `contactMethod`. The current UI does not send `details=1`; follow-up uses `saveFollowUp`.
-- Dates use `parseContactDate`. A last-contact date cannot be after today.
+- Input: `supplierId` and `status` (`ContactStatus`).
+- `details=1` also reads `contactPerson` (max 120), `lastContactOn`, `nextFollowUpOn`, and `contactMethod`.
+- The profile form `ContactTracking` sends `details=1`. The comparison status form does not, so it updates status only.
+- Dates use `parseContactDate`. A last-contact date after today is `invalid`. An empty date clears the column when details are sent.
 - Result: `{ ok: true }` or `{ ok: false, error: "invalid" | "missing" }`.
-- Status history is written only when the status changes.
+- The write is a shortlist upsert. It does not append a status or follow-up history row.
 
-### `saveFollowUp(previous, formData)`
+## Certificate verification function
 
-- Input: `supplierId`, `nextFollowUpOn` (empty clears the date).
-- Calls `setFollowUp`, which keeps the current status and writes `FOLLOW_UP_SCHEDULED` only when the date changes.
+`applyCertificateVerification` and `applyRecordedCertificateStatus` in `src/server/certificate-verification.ts` are not Server Actions.
 
-### `savePerson(previous, formData)`
-
-- Input: `supplierId`, `fullName` (1–160), optional `personId`, `position` (max 120), `email`, `phone`, `preferredChannel`, `isPrimary=1`.
-- Email and phone are normalized. Invalid values return `invalid`. Duplicate email, phone, or nameless name returns `duplicate`.
-- Setting primary clears the previous primary in the same transaction.
-
-### `deletePerson(formData)`
-
-- Input: `supplierId`, `personId`. Invalid ids are ignored. Activities keep the event and set the person to null.
-
-### `setPrimaryPerson(formData)`
-
-- Input: `supplierId`, `personId`. The person must belong to that supplier and workspace.
-
-### `addActivity(previous, formData)`
-
-- Input: `supplierId`, `type` (user communication types only), `description` (1–2000), `occurredAt` (valid calendar datetime in the server time zone), optional `contactPersonId`, `channel`.
-- A person from another supplier returns `{ ok: false, error: "contact" }`.
-- Types that count as contact move `lastContactOn` forward, never backward.
-
-## Validation helpers
-
-| Check | Location |
-| --- | --- |
-| UUID / slug | Zod in `actions.ts` |
-| Email and phone | `normalizeEmail`, `normalizePhone` in `src/lib/contact-activity.ts` |
-| Calendar dates | `parseContactDate` in `src/lib/contact-tracking.ts` |
-| Date-times | `parseZonedDateTime` in `src/lib/contact-activity.ts` |
-| Status / method | `isContactStatus`, `isContactMethod` |
-| Activity type / channel | `isUserActivityType`, `isCommunicationChannel` |
-| Search query | `parseDiscoveryQuery` |
-
-`STATUS_CHANGED`, `NOTE_ADDED`, and `FOLLOW_UP_SCHEDULED` cannot be posted through `addActivity`. Those rows are written by the service when the corresponding field actually changes.
+- The actor argument must be `{ role: "administrator", name }` with a non-empty name.
+- `VERIFIED` and `REJECTED` set `verifiedAt` and `verifiedBy`.
+- `UNVERIFIED` and `PENDING` clear both.
+- Notes are trimmed and rejected above 2000 characters.
+- Nothing calls these functions from a page, and nothing writes the result.
 
 ## Reads used by pages
 
-These are server functions, not HTTP endpoints:
+These are server functions, not HTTP endpoints.
 
 | Function | Used by |
 | --- | --- |
 | `searchSuppliers` | `/suppliers` |
-| `getSupplier`, `scoreSupplier`, `getRelationship` | `/suppliers/[slug]` |
+| `getSupplier`, `scoreSupplier`, `getWorkspace` | `/suppliers/[slug]` |
 | `getCatalog`, `getWorkspace` | `/favorites` |
 | `getSuppliersBySlugs`, `getWorkspace` | `/compare` and CSV export |
-| `getDashboard` | `/dashboard` |
-| `getCategories`, `getProductTypeCounts` | home and `/categories` |
-| `getSavedSupplierIds` | `/suppliers` favorite-state only |
+| `getDashboard` | `/dashboard`, including its product-type supplier counts |
+| `getCategories`, `getProductTypeCounts` | `/` and `/categories` |
+| `getSavedSupplierIds` | `/suppliers` favorite state |
 
-Public catalog includes (`supplierInclude`) do not load notes, people, or activities.
+`supplierInclude` loads products, public contacts, certifications, and sources. Notes come from `getWorkspace()`.

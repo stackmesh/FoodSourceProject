@@ -251,6 +251,7 @@ model Shortlist {
 
   @@unique([workspaceKey, supplierId])
   @@index([workspaceKey, contactStatus])
+  @@index([workspaceKey, nextFollowUpOn])
 }
 
 model SupplierNote {

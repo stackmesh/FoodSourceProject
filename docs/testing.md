@@ -2,18 +2,17 @@
 
 Tests are Node assert scripts, not Jest or Playwright. TypeScript tests run through `scripts/register-loader.mjs`, which resolves `@/` and relative imports.
 
+Reviewed on 2 November 2026. Only the commands listed under “Run during this documentation pass” were executed for this update.
+
 ## Strategy
 
 - Pure functions (matching, freshness, certificates, CSV, product type) run without Postgres.
-- Contact management is an integration test against the local database. It creates temporary suppliers and deletes them in `finally`.
-- Search, freshness, persistence, and contact-form scripts post to `http://localhost:3000` or query Postgres. They need a running `npm run dev` and `DATABASE_URL`.
+- `scripts/search-behavior.mjs`, `scripts/freshness-behavior.mjs`, `scripts/persist-actions.mjs`, and `scripts/contact-tracking.mjs` post to `http://localhost:3000` or query Postgres. They need a running `npm run dev` and `DATABASE_URL`. `scripts/contact-tracking.mjs` checks the shortlist form, not a separate contact-person service.
 - Typecheck, ESLint, Prisma validate, and `next build` are the static gates.
 
 There is no end-to-end browser suite and no CI workflow in this repository.
 
-## Commands
-
-From `package.json`:
+## Commands in `package.json`
 
 ```bash
 npm run typecheck
@@ -23,12 +22,11 @@ npm run test:freshness
 npm run test:csv
 npm run test:certificates
 npm run test:product-type
-npm run test:contact
 npm run build
 npx prisma validate
 ```
 
-Behavior scripts (not npm scripts):
+Behavior scripts:
 
 ```bash
 node --import ./scripts/register-loader.mjs scripts/search-behavior.mjs
@@ -37,54 +35,51 @@ node --import ./scripts/register-loader.mjs scripts/persist-actions.mjs
 node --import ./scripts/register-loader.mjs scripts/contact-tracking.mjs
 ```
 
-`scripts/run-contact-management-test.mjs` is an unused alternate loader. Use `npm run test:contact`.
+The certificate unit file does not open Postgres. Behavior scripts that do load `DATABASE_URL` through `dotenv`.
 
-`test:contact` requires Postgres. If `DATABASE_URL` is missing, the test imports `dotenv/config` from `.env`.
-
-## Coverage that is actually executed
+## What each test covers
 
 | Area | How |
 | --- | --- |
 | Match score weights, missing facts, certificates, geography | `npm run test:matching` |
 | Freshness thresholds and time zones | `npm run test:freshness` |
 | Comparison CSV columns and note exclusion | `npm run test:csv` |
-| Certificate badge markup and status labels | `npm run test:certificates` |
-| Product-type classification | `npm run test:product-type` |
-| Person CRUD, one primary, email/phone normalize, cross-supplier reject, status history, follow-up, overdue, rollback, notes ownership, contact search filter | `npm run test:contact` |
-| Search, filters, sort | `scripts/search-behavior.mjs` |
+| Certificate status math, administrator verification function, badge markup | `npm run test:certificates` |
+| Product-type name map and the four enum values | `npm run test:product-type` |
+| Search, filters, sort, including product type | `scripts/search-behavior.mjs` |
 | Freshness filter on live pages | `scripts/freshness-behavior.mjs` |
 | Favorite, note, status, compare, delete-note HTTP forms | `scripts/persist-actions.mjs` |
-| Follow-up dates, overdue copy, status-only updates | `scripts/contact-tracking.mjs` |
-| All seven `ContactStatus` values persist and write history once | Ad-hoc Phase 6 script against `contact-management.ts` |
+| Follow-up dates and status updates through the live form | `scripts/contact-tracking.mjs` |
 
-## Results from the Phase 6 / Phase 7 pass
+## Run during this documentation pass
 
-Executed and passing on this machine:
+Executed and passing during the cleanup:
 
-- `tsc --noEmit`
-- `npm run test:matching`, `test:freshness`, `test:csv`, `test:certificates`, `test:product-type`, `test:contact`
-- `scripts/search-behavior.mjs`, `freshness-behavior.mjs`, `persist-actions.mjs`, `contact-tracking.mjs`
-- `npm run build` (Next.js 16.4.3, compiled and prerendered)
-- Live HTTP 200 for search filters, profile (`privolzhskaya-ptica`), compare, and favorites
-- `/en/suppliers` → 307 `/suppliers`
+- `npm run typecheck`
+- `npx prisma migrate deploy` applied `20261102230000_drop_unused_records`
+- `npx prisma migrate status` reports the database schema is up to date
+- `npx prisma validate`
+- `npm run test:certificates` on the earlier certificate pass
 
-Executed with issues:
+Not re-run after the unused files were removed:
 
-- `npx prisma migrate status` fails (`P3015`) because `prisma/migrations/20261102100000_media_asset/` has no `migration.sql`. The migration is already applied on the local database.
-- `npm run lint` exits 0 with one warning: `@next/next/no-img-element` on `src/components/landing/home-page.tsx`. The previous `react/no-children-prop` error in `certificate-badges.test.tsx` was fixed by rendering `NextIntlClientProvider` with JSX children.
+- `npm run lint`, `npm run build`
+- `test:matching`, `test:freshness`, `test:csv`, `test:product-type`
+- The four behavior scripts
 
-Not executed:
+An earlier pass recorded `tsc --noEmit`, the npm tests, the behavior scripts, and `npm run build` on Next.js 16.4.3 as passing. `npm run lint` was recorded as exit 0 with one warning: `@next/next/no-img-element` on `src/components/landing/home-page.tsx`.
 
-- Interactive browser clicks, confirmation dialogs, double-submit protection, loading-state timing
-- Mobile and desktop layout comparison in a real viewport
+Also not covered by an automated suite:
+
+- Browser clicks, confirmation dialogs, double-submit, and loading-state timing
+- Desktop and narrow layouts
 - A served English UI (`/en` redirects)
 - Hosted production deployment
-- Authorization against a second real user (there is no user model)
+- A second user (there is no user model)
 
 ## Known limitations
 
-- Removing a favorite deletes workspace CRM rows. Tests cover the delete; there is no undo test.
-- `NOTE_ADDED` stores the note text on the history row. Deleting the note does not remove that event.
-- Temporary contact-test suppliers must not remain. The contact test and HTTP scripts clean up in `finally`.
-- A full `npm run db:seed` rewrites `updatedAt` and changes freshness. Prefer `--relationships-only` when you only need demo CRM rows.
-- Certificate lint used to be the only ESLint error. `src/components/landing/home-page.tsx` may still warn about a raw `<img>`.
+- Favorite removal deletes notes and the shortlist.
+- `deleteNote` deletes by note id and workspace. It does not check `supplierId`.
+- A full `npm run db:seed` rewrites `updatedAt` and changes freshness.
+- Certificate tests do not hit the database. They do not prove the live certificate filter SQL.

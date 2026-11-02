@@ -1,5 +1,4 @@
 # dependencies
-/certs
 /node_modules
 /.pnp
 .pnp.*
@@ -43,6 +42,10 @@ next-env.d.ts
 
 # prisma client
 /src/generated
+
+# certs
+!certs/
+!certs/ca.pem
 
 # local package download cache
 /.cache

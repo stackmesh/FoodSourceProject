@@ -1,5 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import fs from "node:fs";
+import path from "node:path";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -14,17 +16,16 @@ function createPrismaClient() {
     );
   }
 
-  const ca = process.env.PG_SSL_CA?.replace(/\\n/g, "\n");
+  // const ca = process.env.PG_SSL_CA?.replace(/\\n/g, "\n");
+  const caPath = path.join(process.cwd(), "certs", "ca.pem");
   // const adapter = new PrismaPg({ connectionString });
   const adapter = new PrismaPg({connectionString,
-  ssl: ca
-    ? {
-        ca,
+  ssl:{
+        ca: fs.readFileSync(caPath, "utf8"),
         rejectUnauthorized: true,
       }
-    : undefined,
   });
-  
+
   return new PrismaClient({ adapter });
 }
 

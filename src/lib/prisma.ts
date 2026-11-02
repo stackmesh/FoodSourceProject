@@ -1,7 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
-import fs from "node:fs";
-import path from "node:path";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -9,29 +7,28 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
-
+  const caCert = process.env.DATABASE_CA_CERT;
+  
   if (!connectionString) {
     throw new Error(
       "DATABASE_URL is not set. Copy .env.example to .env before querying the database.",
     );
   }
 
-  const caPath = path.join(
-    process.cwd(),
-    'certs',
-    'ca.pem'
-  );
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is missing");
+  }
 
-  if (!fs.existsSync(caPath)) {
-    throw new Error(`CA certificate not found: ${caPath}`);
+  if (!caCert) {
+    throw new Error("DATABASE_CA_CERT is missing");
   }
   // const ca = process.env.PG_SSL_CA?.replace(/\\n/g, "\n");
   // const adapter = new PrismaPg({ connectionString });
   const adapter = new PrismaPg({connectionString,
-  ssl:{
-        ca: fs.readFileSync(caPath, "utf8"),
-        rejectUnauthorized: true,
-      }
+    ssl: {
+      ca: caCert,
+      rejectUnauthorized: true,
+    },
   });
 
   return new PrismaClient({ adapter });

@@ -14,7 +14,17 @@ function createPrismaClient() {
     );
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const ca = process.env.PG_SSL_CA?.replace(/\\n/g, "\n");
+  // const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({connectionString,
+  ssl: ca
+    ? {
+        ca,
+        rejectUnauthorized: true,
+      }
+    : undefined,
+  });
+  
   return new PrismaClient({ adapter });
 }
 
